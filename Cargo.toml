@@ -10,3 +10,6 @@ mount = "0.4.0"
 time = "0.1.39"
 router = "*"
 pulldown-cmark = { version = "0.0.11", default-features = false }
+serde = "*"
+serde_json = "*"
+serde_derive = "*"

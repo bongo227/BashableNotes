@@ -5,6 +5,11 @@ extern crate mount;
 extern crate router;
 extern crate pulldown_cmark;
 
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
 use iron::headers::ContentType;

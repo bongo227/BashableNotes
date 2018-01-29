@@ -13,11 +13,25 @@
 | bob | 2 |
 | bill | 3 | 
 
+```rust
+match block.language {
+    Some(lang) => Event::Start(Tag::CodeBlock(Cow::from(lang))),
+    None => Event::Start(Tag::CodeBlock(Cow::from(""))),
+}
+```
+
+```c {"hide":true}
+int main() {
+    printf("{}", "Hello world!");
+    return 0;
+}
+```
+
 ## Python 
 
 `BankAccount`
 
-```python hide name="bank.py" command="python bank.py" test="\"\""
+```python {"name":"bank.py", "cmd":"python bank.py"}
 class BankAccount(object):
     def __init__(self, initial_balance=0):
         self.balance = initial_balance
