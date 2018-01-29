@@ -1,10 +1,9 @@
 extern crate iron;
 extern crate time;
-extern crate comrak;
-extern crate typed_arena;
 extern crate staticfile;
 extern crate mount;
 extern crate router;
+extern crate pulldown_cmark;
 
 use iron::prelude::*;
 use iron::{BeforeMiddleware, AfterMiddleware, typemap};
