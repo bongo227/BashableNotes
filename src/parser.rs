@@ -59,13 +59,18 @@ pub fn parse_markdown() -> String {
                     let json = &settings[language.len()..];
                     let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
 
-                    if let Ok(options) = result {
-                        let block = CodeBlock {
-                            options: options,
-                            start_index: index,
-                            end_index: 0,
-                        };
-                        code_block = Some(block);
+                    match result {
+                        Ok(options) => {
+                            let block = CodeBlock {
+                                options: options,
+                                start_index: index,
+                                end_index: 0,
+                            };
+                            code_block = Some(block);
+                        },
+                        Err(err) => {
+                            panic!("Invalid code block options: {}", err);
+                        }
                     }
 
                     Event::Start(Tag::CodeBlock(Cow::from(language)))

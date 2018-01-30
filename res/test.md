@@ -1,4 +1,4 @@
-```dockerfile {"name":"Dockerfile"}
+```dockerfile {"name":"Dockerfile", "cmd":"true"}
 FROM ubuntu:latest
 ```
 
