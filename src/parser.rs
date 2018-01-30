@@ -57,25 +57,22 @@ pub fn parse_markdown() -> String {
                     };
 
                     let json = &settings[language.len()..];
-                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(&json);
+                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
 
-                    match result {
-                        Ok(options) => {
-                            let block = CodeBlock {
-                                options: options,
-                                start_index: index,
-                                end_index: 0,
-                            };
-                            code_block = Some(block);
-                        }
-                        Err(_) => {}
+                    if let Ok(options) = result {    
+                        let block = CodeBlock {
+                            options: options,
+                            start_index: index,
+                            end_index: 0,
+                        };
+                        code_block = Some(block);
                     }
 
                     Event::Start(Tag::CodeBlock(Cow::from(language)))
                 }
 
                 Event::Text(text) => {
-                    if let Some(_) = code_block {
+                    if code_block.is_some() {
                         code.push_str(&text);
                     }
                     Event::Text(text)
@@ -88,15 +85,12 @@ pub fn parse_markdown() -> String {
                         block.end_index = index;
 
                         // Save file
-                        match block.options.name {
-                            Some(ref file_name) => {
+                        if let Some(ref file_name) = block.options.name {
                                 let path = notebook_path.join(file_name);
                                 let mut f = File::create(path).unwrap();
                                 f.write_all(code.as_bytes()).unwrap();
                                 f.sync_all().unwrap();
-                            }
-                            None => {}
-                        }
+                        } 
 
                         blocks.push(block.clone());
                     }
@@ -114,7 +108,7 @@ pub fn parse_markdown() -> String {
 
     let (mut events, blocks) = get_blocks(notebook_path, parser);
     let mut insert_offset = 0;
-    for (index, ref block) in blocks.iter().enumerate() {
+    for (index, block) in blocks.iter().enumerate() {
         match block.options.cmd {
             Some(ref cmd) => {
                 println!("Running cmd: {}", cmd);
@@ -134,25 +128,25 @@ pub fn parse_markdown() -> String {
 
                 let input_name = match block.options.name {
                     Some(ref name) => format!("INPUT: {}", name),
-                    None => format!("INPUT"),
+                    None => String::from("INPUT"),
                 };
 
                 let output_name = match block.options.cmd {
                     Some(ref cmd) => format!("OUTPUT: {}", cmd),
-                    None => format!("OUTPUT"),
+                    None => String::from("OUTPUT"),
                 };
 
                 let error_name = match block.options.cmd {
                     Some(ref cmd) => format!("ERROR: {}", cmd),
-                    None => format!("ERROR"),
+                    None => String::from("ERROR"),
                 };
 
-                let block_wrapper_begin = format!(
+                let block_wrapper_begin = String::from(
                     r#"
                     <div class="block-wrapper">"#
                 );
 
-                let block_wrapper_end = format!(
+                let block_wrapper_end = String::from(
                     r#"
                     </div>"#
                 );
@@ -171,11 +165,11 @@ pub fn parse_markdown() -> String {
                 };
 
                 let wrapper_end = || {
-                    format!(
+                    String::from(
                         r#"
                     </div>
                         </div>
-                            </div>"#
+                            </div>"#,
                     )
                 };
 
