@@ -5,9 +5,8 @@ use pulldown_cmark::{html, Event, Options, Parser, Tag};
 use std::borrow::Cow;
 use serde_json;
 
-use std::io::{self, Write};
+use std::io::Write;
 use std::fs;
-use tempdir::TempDir;
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
