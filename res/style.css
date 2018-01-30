@@ -1,5 +1,4 @@
 :root {
-    --main-bg-color: brown;
     /* Monochrome */
     --mono-1: hsl(220, 14%, 71%); /* default text */
     --mono-2: hsl(220,  9%, 55%);
@@ -18,7 +17,8 @@
     --hue-6-2: hsl( 39, 67%, 69%); /* orange 2 */
 
     /* Background */
-    --bg:       hsl(220, 13%, 18%);
+    --bg:       hsl(220, 13%, 22%);
+    --code-bg:  hsl(220, 13%, 18%);
 }
 
 body {
@@ -239,6 +239,18 @@ table tr td :first-child {
 table tr th :last-child,
 table tr td :last-child {
     margin-bottom: 0;
+}
+
+pre {
+    background: var(--code-bg);
+    /* position: absolute;
+    left: 0;
+    width: 100vw; */
+}
+
+code {
+    margin: 0 auto;
+    max-width: 800px;
 }
 
 /* Max document width */

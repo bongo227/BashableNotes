@@ -23,6 +23,8 @@ use staticfile::Static;
 use mount::Mount;
 use router::Router;
 
+extern crate tempdir;
+
 struct ResponseTime;
 
 impl typemap::Key for ResponseTime { type Value = u64; }
