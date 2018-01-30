@@ -6,18 +6,28 @@ use std::borrow::Cow;
 use serde_json;
 
 use std::io::{self, Write};
+use std::fs;
 use tempdir::TempDir;
 use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct CodeBlock {
+struct CodeBlockOptions {
     hide: Option<bool>,
     name: Option<String>,
     cmd: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+struct CodeBlock {
+    options: CodeBlockOptions,
+    start_index: usize,
+    end_index: usize,
+}
+
 pub fn parse_markdown() -> String {
-    let notebook_dir = TempDir::new("notebook").unwrap();
+    // let notebook_dir = TempDir::new("notebook").unwrap();
+    let notebook_path = Path::new("notebook/");
+    fs::create_dir_all(notebook_path).unwrap();
 
     let mut f = File::open(Path::new("res/test.md")).unwrap();
     let mut contents = String::new();
@@ -28,12 +38,12 @@ pub fn parse_markdown() -> String {
     let parser = Parser::new_ext(&contents, options);
 
     fn get_blocks<'a>(
-        notebook_dir: &'a TempDir,
+        notebook_path: &Path,
         parser: Parser<'a>,
-    ) -> (Vec<Event<'a>>, Vec<(usize, CodeBlock)>) {
+    ) -> (Vec<Event<'a>>, Vec<CodeBlock>) {
         let mut code = String::new();
         let mut code_block = None;
-        let mut blocks: Vec<(usize, CodeBlock)> = Vec::new();
+        let mut blocks: Vec<CodeBlock> = Vec::new();
 
         let events: Vec<Event> = parser
             .into_iter()
@@ -48,10 +58,15 @@ pub fn parse_markdown() -> String {
                     };
 
                     let json = &settings[language.len()..];
-                    let result: serde_json::Result<CodeBlock> = serde_json::from_str(&json);
+                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(&json);
 
                     match result {
-                        Ok(block) => {
+                        Ok(options) => {
+                            let block = CodeBlock {
+                                options: options,
+                                start_index: index,
+                                end_index: 0,
+                            };
                             code_block = Some(block);
                         }
                         Err(_) => {}
@@ -70,11 +85,13 @@ pub fn parse_markdown() -> String {
                 Event::End(Tag::CodeBlock(_)) => {
                     println!("code: {}\n,block: {:?}", code, code_block);
 
-                    if let Some(ref block) = code_block {
+                    if let Some(ref mut block) = code_block {
+                        block.end_index = index;
+
                         // Save file
-                        match block.name {
+                        match block.options.name {
                             Some(ref file_name) => {
-                                let path = notebook_dir.path().join(file_name);
+                                let path = notebook_path.join(file_name);
                                 let mut f = File::create(path).unwrap();
                                 f.write_all(code.as_bytes()).unwrap();
                                 f.sync_all().unwrap();
@@ -82,7 +99,7 @@ pub fn parse_markdown() -> String {
                             None => {}
                         }
 
-                        blocks.push((index, block.clone()));
+                        blocks.push(block.clone());
                     }
 
                     code = String::new();
@@ -96,10 +113,10 @@ pub fn parse_markdown() -> String {
         (events, blocks)
     }
 
-    let (mut events, blocks) = get_blocks(&notebook_dir, parser);
+    let (mut events, blocks) = get_blocks(notebook_path, parser);
     let mut insert_offset = 0;
-    for &(ref index, ref block) in blocks.iter() {
-        match block.cmd {
+    for (index, ref block) in blocks.iter().enumerate() {
+        match block.options.cmd {
             Some(ref cmd) => {
                 println!("Running cmd: {}", cmd);
 
@@ -109,21 +126,134 @@ pub fn parse_markdown() -> String {
 
                 // Run command
                 let output = Command::new(program)
-                    .current_dir(notebook_dir.path())
+                    .current_dir(notebook_path)
                     .args(args)
                     .output()
                     .expect("ls command failed to start");
-
                 let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+
+                let input_name = match block.options.name {
+                    Some(ref name) => format!("INPUT: {}", name),
+                    None => format!("INPUT"),
+                };
+
+                let output_name = match block.options.cmd {
+                    Some(ref cmd) => format!("OUTPUT: {}", cmd),
+                    None => format!("OUTPUT"),
+                };
+
+                let error_name = match block.options.cmd {
+                    Some(ref cmd) => format!("ERROR: {}", cmd),
+                    None => format!("ERROR"),
+                };
+
+                let block_wrapper_begin = format!(
+                    r#"
+                    <div class="block-wrapper">"#
+                );
+
+                let block_wrapper_end = format!(
+                    r#"
+                    </div>"#
+                );
+
+                // Insert wrapper
+                let wrapper_begin = |id: &str, box_name: &str| {
+                    format!(
+                        r#"
+                    <div class="wrap-collabsible code-{1}">
+                        <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
+                        <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
+                        <div class="collapsible-content">
+                            <div class="content-inner">"#,
+                        index, id, box_name
+                    )
+                };
+
+                let wrapper_end = || {
+                    format!(
+                        r#"
+                    </div>
+                        </div>
+                            </div>"#
+                    )
+                };
+
+                // TODO clean up all the inserts
+                // Consider popping the elements,
+                // then appending a new vector with all the custom html
+                events.insert(
+                    block.start_index + insert_offset,
+                    Event::Html(Cow::from(block_wrapper_begin)),
+                );
+                insert_offset += 1;
+
+                events.insert(
+                    block.start_index + insert_offset,
+                    Event::Html(Cow::from(wrapper_begin("in", &input_name))),
+                );
+                insert_offset += 1;
+
+                events.insert(
+                    block.end_index + insert_offset + 1,
+                    Event::Html(Cow::from(wrapper_end())),
+                );
+                insert_offset += 1;
 
                 // Insert node for output
-                let output_html = format!(
-                    "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
-                    stdout
-                );
+                if stdout != "" {
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(wrapper_begin("out", &output_name))),
+                    );
+                    insert_offset += 1;
+
+                    let output_html = format!(
+                        "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
+                        stdout
+                    );
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(output_html)),
+                    );
+                    insert_offset += 1;
+
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(wrapper_end())),
+                    );
+                    insert_offset += 1;
+                }
+
+                // Insert node for error
+                if stderr != "" {
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(wrapper_begin("error", &error_name))),
+                    );
+                    insert_offset += 1;
+
+                    let output_html = format!(
+                        "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
+                        stderr
+                    );
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(output_html)),
+                    );
+                    insert_offset += 1;
+
+                    events.insert(
+                        block.end_index + insert_offset + 1,
+                        Event::Html(Cow::from(wrapper_end())),
+                    );
+                    insert_offset += 1;
+                }
+
                 events.insert(
-                    index + 1 + insert_offset,
-                    Event::Html(Cow::from(output_html)),
+                    block.end_index + insert_offset + 1,
+                    Event::Html(Cow::from(block_wrapper_end)),
                 );
                 insert_offset += 1;
             }

@@ -1,22 +1,22 @@
 extern crate iron;
-extern crate time;
-extern crate staticfile;
 extern crate mount;
-extern crate router;
 extern crate pulldown_cmark;
+extern crate router;
+extern crate staticfile;
+extern crate time;
 
 extern crate serde;
-extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 
 use iron::prelude::*;
-use iron::{BeforeMiddleware, AfterMiddleware, typemap};
+use iron::{typemap, AfterMiddleware, BeforeMiddleware};
 use iron::headers::ContentType;
 use time::precise_time_ns;
 
 mod parser;
-use parser::{parse_markdown};
+use parser::parse_markdown;
 
 use std::path::Path;
 use staticfile::Static;
@@ -27,7 +27,9 @@ extern crate tempdir;
 
 struct ResponseTime;
 
-impl typemap::Key for ResponseTime { type Value = u64; }
+impl typemap::Key for ResponseTime {
+    type Value = u64;
+}
 
 impl BeforeMiddleware for ResponseTime {
     fn before(&self, req: &mut Request) -> IronResult<()> {
@@ -57,14 +59,15 @@ fn main() {
     let mut chain = Chain::new(hello_world);
     chain.link_before(ResponseTime);
     chain.link_after(ResponseTime);
-    
+
     let mut router = Router::new();
     router.get("/", chain, "document");
-    
+
     // Serve the shared JS/CSS at /
     let mut mount = Mount::new();
     mount.mount("/", router);
     mount.mount("res/", Static::new(Path::new("res/")));
+    mount.mount("notebook/", Static::new(Path::new("notebook/")));
 
     Iron::new(mount).http("localhost:3000").unwrap();
 }
