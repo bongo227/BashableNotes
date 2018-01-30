@@ -7,6 +7,7 @@ use serde_json;
 
 use std::io::{self, Write};
 use tempdir::TempDir;
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CodeBlock {
@@ -26,89 +27,113 @@ pub fn parse_markdown() -> String {
 
     let parser = Parser::new_ext(&contents, options);
 
-
-    fn get_blocks<'a>(notebook_dir: TempDir, parser: Parser<'a>) -> (Vec<Event>, Vec<(usize, CodeBlock)>) {
+    fn get_blocks<'a>(
+        notebook_dir: &'a TempDir,
+        parser: Parser<'a>,
+    ) -> (Vec<Event<'a>>, Vec<(usize, CodeBlock)>) {
         let mut code = String::new();
         let mut code_block = None;
         let mut blocks: Vec<(usize, CodeBlock)> = Vec::new();
 
-        let events: Vec<Event> = parser.into_iter().enumerate().map(|(index, event)| match event {
-            Event::Start(Tag::CodeBlock(settings)) => {
-                let settings = settings.into_owned();
-                let mut iter = settings.split_whitespace();
-                let language = match iter.next() {
-                    Some(lang) => lang.to_owned(),
-                    None => String::from(""),
-                };
+        let events: Vec<Event> = parser
+            .into_iter()
+            .enumerate()
+            .map(|(index, event)| match event {
+                Event::Start(Tag::CodeBlock(settings)) => {
+                    let settings = settings.into_owned();
+                    let mut iter = settings.split_whitespace();
+                    let language = match iter.next() {
+                        Some(lang) => lang.to_owned(),
+                        None => String::from(""),
+                    };
 
-                let json = &settings[language.len()..];
-                let result: serde_json::Result<CodeBlock> = serde_json::from_str(&json);
+                    let json = &settings[language.len()..];
+                    let result: serde_json::Result<CodeBlock> = serde_json::from_str(&json);
 
-                match result {
-                    Ok(block) => {
-                        code_block = Some(block);
-                    }
-                    Err(_) => {}
-                }
-
-                Event::Start(Tag::CodeBlock(Cow::from(language)))
-            }
-
-            Event::Text(text) => {
-                if let Some(_) = code_block {
-                    code.push_str(&text);
-                }
-                Event::Text(text)
-            }
-
-            Event::End(Tag::CodeBlock(_)) => {
-                println!("code: {}\n,block: {:?}", code, code_block);
-                
-                if let Some(ref block) = code_block {
-                    // Save file
-                    match block.name {
-                        Some(ref file_name) => {
-                            let path =  notebook_dir.path().join(file_name);
-                            let mut f = File::create(path).unwrap();
-                            f.write_all(code.as_bytes()).unwrap();
-                            f.sync_all().unwrap();
-                        },
-                        None => {}
+                    match result {
+                        Ok(block) => {
+                            code_block = Some(block);
+                        }
+                        Err(_) => {}
                     }
 
-                    blocks.push((index, block.clone()));
+                    Event::Start(Tag::CodeBlock(Cow::from(language)))
                 }
-                
-                code = String::new();
-                event
-            }
-            
-            _ => event,
-        }).collect();
+
+                Event::Text(text) => {
+                    if let Some(_) = code_block {
+                        code.push_str(&text);
+                    }
+                    Event::Text(text)
+                }
+
+                Event::End(Tag::CodeBlock(_)) => {
+                    println!("code: {}\n,block: {:?}", code, code_block);
+
+                    if let Some(ref block) = code_block {
+                        // Save file
+                        match block.name {
+                            Some(ref file_name) => {
+                                let path = notebook_dir.path().join(file_name);
+                                let mut f = File::create(path).unwrap();
+                                f.write_all(code.as_bytes()).unwrap();
+                                f.sync_all().unwrap();
+                            }
+                            None => {}
+                        }
+
+                        blocks.push((index, block.clone()));
+                    }
+
+                    code = String::new();
+                    event
+                }
+
+                _ => event,
+            })
+            .collect();
 
         (events, blocks)
     }
 
-    let (mut events, blocks) = get_blocks(notebook_dir, parser);
+    let (mut events, blocks) = get_blocks(&notebook_dir, parser);
     let mut insert_offset = 0;
     for &(ref index, ref block) in blocks.iter() {
         match block.cmd {
             Some(ref cmd) => {
                 println!("Running cmd: {}", cmd);
 
+                let mut cmd_parts = cmd.split_whitespace();
+                let program = cmd_parts.next().unwrap();
+                let args: Vec<&str> = cmd_parts.collect();
+
+                // Run command
+                let output = Command::new(program)
+                    .current_dir(notebook_dir.path())
+                    .args(args)
+                    .output()
+                    .expect("ls command failed to start");
+
+                let stdout = String::from_utf8_lossy(&output.stdout);
+
                 // Insert node for output
-                let output_html = "<pre><code class=\"language=nohighlight hljs\">OUTPUT!</code></pre>";
-                events.insert(index + 1 + insert_offset, Event::Html(Cow::from(output_html)));
+                let output_html = format!(
+                    "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
+                    stdout
+                );
+                events.insert(
+                    index + 1 + insert_offset,
+                    Event::Html(Cow::from(output_html)),
+                );
                 insert_offset += 1;
             }
             None => println!("No command"),
         }
     }
 
-
-    // Transform events back into interator 
+    // Transform events back into interator
     let parser = events.into_iter();
-    
+
     // let parser = parser.map(|event| {println!("event: {:?}", event); event});
 
     let mut html_buf = String::new();
