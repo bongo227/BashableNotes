@@ -10,6 +10,8 @@ extern crate serde;
 extern crate serde_derive;
 extern crate serde_json;
 
+extern crate shiplift;
+
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};
 use iron::headers::ContentType;
@@ -23,7 +25,6 @@ use staticfile::Static;
 use mount::Mount;
 use router::Router;
 
-extern crate tempdir;
 
 struct ResponseTime;
 
@@ -56,6 +57,14 @@ fn hello_world(_: &mut Request) -> IronResult<Response> {
 }
 
 fn main() {
+    // let docker = Docker::connect_with_defaults().unwrap();
+    // let opts = ContainerListOptions::default().all();
+    // let containers = docker.containers(opts).unwrap();
+    // for container in &containers {
+    //     println!("{:?}", container);
+    // }
+    // return;
+ 
     let mut chain = Chain::new(hello_world);
     chain.link_before(ResponseTime);
     chain.link_after(ResponseTime);

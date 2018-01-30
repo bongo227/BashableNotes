@@ -59,7 +59,7 @@ pub fn parse_markdown() -> String {
                     let json = &settings[language.len()..];
                     let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
 
-                    if let Ok(options) = result {    
+                    if let Ok(options) = result {
                         let block = CodeBlock {
                             options: options,
                             start_index: index,
@@ -86,11 +86,11 @@ pub fn parse_markdown() -> String {
 
                         // Save file
                         if let Some(ref file_name) = block.options.name {
-                                let path = notebook_path.join(file_name);
-                                let mut f = File::create(path).unwrap();
-                                f.write_all(code.as_bytes()).unwrap();
-                                f.sync_all().unwrap();
-                        } 
+                            let path = notebook_path.join(file_name);
+                            let mut f = File::create(path).unwrap();
+                            f.write_all(code.as_bytes()).unwrap();
+                            f.sync_all().unwrap();
+                        }
 
                         blocks.push(block.clone());
                     }
@@ -106,6 +106,71 @@ pub fn parse_markdown() -> String {
         (events, blocks)
     }
 
+    // Build docker container
+    let output = Command::new("docker")
+        .current_dir(notebook_path)
+        .arg("build")
+        .arg(".")
+        .arg("-t")
+        .arg("notebook-container")
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if !stdout.contains("Successfully tagged notebook-container:latest") {
+        panic!(
+            "Failed to build docker image:\n==== stdout ====\n{}\n==== stderr ====\n{}",
+            stdout, stderr
+        );
+    }
+    println!("docker container built");
+
+    use shiplift::{ContainerOptions, Docker, ExecContainerOptions};
+
+    let docker = Docker::new();
+    let containers = docker.containers();
+    // let info = containers
+    //     .create(&ContainerOptions::builder("notebook-container").build())
+    //     .unwrap();
+    // println!("{:?}", info);
+
+    // Build docker container
+    let output = Command::new("docker")
+        .current_dir(notebook_path)
+        .arg("run")
+        .arg("-i")  // keep container alive even though we are not attached
+        .arg("-d") // run in the background
+        .arg("notebook-container")
+        .output()
+        .unwrap();
+
+    let container_id = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    if stderr != "" {
+        panic!(
+            "Failed to start container!\n--stdout:\n{}\n--stderr:\n{}",
+            container_id, stderr
+        );
+    }
+
+    let options = ExecContainerOptions::builder()
+        .cmd(vec![
+            "bash",
+            "-c",
+            "echo -n \"echo VAR=$VAR on stdout\"; echo -n \"echo VAR=$VAR on stderr\" >&2",
+        ])
+        .env(vec!["VAR=value"])
+        .attach_stdout(true)
+        .attach_stderr(true)
+        .build();
+
+    // let docker = Docker::connect_with_defaults().unwrap();
+    // let image = docker.create_image(
+    //     String::from("notebook-image"),
+    //     String::from("notebook-containter:latest"),
+    // ).unwrap();
+
     let (mut events, blocks) = get_blocks(notebook_path, parser);
     let mut insert_offset = 0;
     for (index, block) in blocks.iter().enumerate() {
@@ -118,13 +183,20 @@ pub fn parse_markdown() -> String {
                 let args: Vec<&str> = cmd_parts.collect();
 
                 // Run command
-                let output = Command::new(program)
-                    .current_dir(notebook_path)
-                    .args(args)
-                    .output()
-                    .expect("ls command failed to start");
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
+                // let output = Command::new(program)
+                //     .current_dir(notebook_path)
+                //     .args(args)
+                //     .output()
+                //     .expect("ls command failed to start");
+                // let stdout = String::from_utf8_lossy(&output.stdout);
+                // let stderr = String::from_utf8_lossy(&output.stderr);
+
+                let containers = docker.containers();
+                let container = containers.get(&container_id);
+                // container.start().unwrap();
+                let result = container.exec(&options).unwrap();
+                let stdout = result.stdout;
+                let stderr = result.stderr;
 
                 let input_name = match block.options.name {
                     Some(ref name) => format!("INPUT: {}", name),
@@ -143,12 +215,12 @@ pub fn parse_markdown() -> String {
 
                 let block_wrapper_begin = String::from(
                     r#"
-                    <div class="block-wrapper">"#
+                    <div class="block-wrapper">"#,
                 );
 
                 let block_wrapper_end = String::from(
                     r#"
-                    </div>"#
+                    </div>"#,
                 );
 
                 // Insert wrapper
@@ -253,6 +325,11 @@ pub fn parse_markdown() -> String {
             None => println!("No command"),
         }
     }
+
+    // Stop the container
+    let containers = docker.containers();
+    let container = containers.get(&container_id);
+    container.stop(None).unwrap();
 
     // Transform events back into interator
     let parser = events.into_iter();

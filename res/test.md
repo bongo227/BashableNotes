@@ -1,7 +1,11 @@
+```dockerfile {"name":"Dockerfile"}
+FROM ubuntu:latest
+```
+
 ```bash {"name":"install.sh", "cmd":"bash install.sh"}
-sudo -H pip install setuptools
-sudo -H pip install matplotlib
-sudo apt-get install -y python-tk
+# sudo -H pip install setuptools
+# sudo -H pip install matplotlib
+# sudo apt-get install -y python-tk
 ```
 
 ```python {"name":"helloworld.py", "cmd":"python helloworld.py"}

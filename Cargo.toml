@@ -13,4 +13,4 @@ pulldown-cmark = { version = "0.0.11", default-features = false }
 serde = "*"
 serde_json = "*"
 serde_derive = "*"
-tempdir = "0.3"
+shiplift = "0.3.2"
