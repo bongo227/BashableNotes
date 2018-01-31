@@ -9,7 +9,9 @@ use std::io::Write;
 use std::fs;
 use std::process::Command;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use shiplift::{Docker, ExecContainerOptions};
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct CodeBlockOptions {
     hide: Option<bool>,
     name: Option<String>,
@@ -21,97 +23,10 @@ struct CodeBlock {
     options: CodeBlockOptions,
     start_index: usize,
     end_index: usize,
+    code: String,
 }
 
-pub fn parse_markdown() -> String {
-    // let notebook_dir = TempDir::new("notebook").unwrap();
-    let notebook_path = Path::new("notebook/");
-    fs::create_dir_all(notebook_path).unwrap();
-
-    let mut f = File::open(Path::new("res/test.md")).unwrap();
-    let mut contents = String::new();
-    f.read_to_string(&mut contents).unwrap();
-
-    let options = Options::all();
-
-    let parser = Parser::new_ext(&contents, options);
-
-    fn get_blocks<'a>(
-        notebook_path: &Path,
-        parser: Parser<'a>,
-    ) -> (Vec<Event<'a>>, Vec<CodeBlock>) {
-        let mut code = String::new();
-        let mut code_block = None;
-        let mut blocks: Vec<CodeBlock> = Vec::new();
-
-        let events: Vec<Event> = parser
-            .into_iter()
-            .enumerate()
-            .map(|(index, event)| match event {
-                Event::Start(Tag::CodeBlock(settings)) => {
-                    let settings = settings.into_owned();
-                    let mut iter = settings.split_whitespace();
-                    let language = match iter.next() {
-                        Some(lang) => lang.to_owned(),
-                        None => String::from(""),
-                    };
-
-                    let json = &settings[language.len()..];
-                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
-
-                    match result {
-                        Ok(options) => {
-                            let block = CodeBlock {
-                                options: options,
-                                start_index: index,
-                                end_index: 0,
-                            };
-                            code_block = Some(block);
-                        },
-                        Err(err) => {
-                            panic!("Invalid code block options: {}", err);
-                        }
-                    }
-
-                    Event::Start(Tag::CodeBlock(Cow::from(language)))
-                }
-
-                Event::Text(text) => {
-                    if code_block.is_some() {
-                        code.push_str(&text);
-                    }
-                    Event::Text(text)
-                }
-
-                Event::End(Tag::CodeBlock(_)) => {
-                    println!("code: {}\n,block: {:?}", code, code_block);
-
-                    if let Some(ref mut block) = code_block {
-                        block.end_index = index;
-
-                        // Save file
-                        if let Some(ref file_name) = block.options.name {
-                            let path = notebook_path.join(file_name);
-                            let mut f = File::create(path).unwrap();
-                            f.write_all(code.as_bytes()).unwrap();
-                            f.sync_all().unwrap();
-                        }
-
-                        blocks.push(block.clone());
-                    }
-
-                    code = String::new();
-                    event
-                }
-
-                _ => event,
-            })
-            .collect();
-
-        (events, blocks)
-    }
-
-    // Build docker container
+fn build_docker_container(notebook_path: &Path) {
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("build")
@@ -130,17 +45,9 @@ pub fn parse_markdown() -> String {
         );
     }
     println!("docker container built");
+}
 
-    use shiplift::{ContainerOptions, Docker, ExecContainerOptions};
-
-    let docker = Docker::new();
-    let containers = docker.containers();
-    // let info = containers
-    //     .create(&ContainerOptions::builder("notebook-container").build())
-    //     .unwrap();
-    // println!("{:?}", info);
-
-    // Build docker container
+fn start_docker_container(notebook_path: &Path) -> String {
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("run")
@@ -159,6 +66,92 @@ pub fn parse_markdown() -> String {
         );
     }
 
+    container_id.to_string()
+}
+
+fn parse_code_block(settings: String, index: usize) -> CodeBlock {
+    let mut iter = settings.split_whitespace();
+    let language = match iter.next() {
+        Some(lang) => lang.to_owned(),
+        None => String::from(""),
+    };
+
+    let json = &settings[language.len()..];
+    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
+
+    let options = match result {
+        Ok(options) => options,
+        Err(_) => CodeBlockOptions::default(),
+    };
+
+    CodeBlock {
+        options: options,
+        start_index: index,
+        end_index: 0,
+        code: String::new(),
+    }
+}
+
+fn extract_blocks<'a>(index: usize, event: Event<'a>, blocks: &mut Vec<CodeBlock>) -> Event<'a> {
+    match event {
+        Event::Start(Tag::CodeBlock(ref settings)) => {
+            let settings = settings.clone().into_owned();
+            blocks.push(parse_code_block(settings, index));
+        }
+
+        Event::Text(ref text) => {
+            blocks.last_mut().map(|block| block.code.push_str(&text));
+        }
+
+        Event::End(Tag::CodeBlock(_)) => {
+            blocks.last_mut().map(|block| block.end_index = index);
+        }
+
+        _ => {}
+    }
+    event
+}
+
+fn exec_cmd(container_id: &String, cmd: &String) -> (String, String) {
+    println!("Running cmd: {}", cmd);
+
+    // let mut cmd_parts = cmd.split_whitespace();
+    // let program = cmd_parts.next().unwrap();
+    // let args: Vec<&str> = cmd_parts.collect();
+
+    // let containers = docker.containers();
+    // let container = containers.get(&container_id);
+    // let result = container.exec(&options).unwrap();
+    // let stdout = result.stdout;
+    // let stderr = result.stderr;
+
+    let stdout = String::from("test out");
+    let stderr = String::from("test error");
+
+    (stdout, stderr)
+}
+
+pub fn parse_markdown() -> String {
+    // Create notebook directory
+    let notebook_path = Path::new("notebook/");
+    fs::create_dir_all(notebook_path).unwrap();
+
+    // Read markdown file
+    let mut f = File::open(Path::new("res/test.md")).unwrap();
+    let mut contents = String::new();
+    f.read_to_string(&mut contents).unwrap();
+
+    // Create parser
+    let options = Options::all();
+    let parser = Parser::new_ext(&contents, options);
+
+    // Setup docker enviroment
+    // let docker = Docker::new();
+    // build_docker_container(notebook_path);
+    // let container_id = start_docker_container(notebook_path);
+    let container_id = String::from("foo");
+
+    // TODO: remove this
     let options = ExecContainerOptions::builder()
         .cmd(vec![
             "bash",
@@ -170,176 +163,149 @@ pub fn parse_markdown() -> String {
         .attach_stderr(true)
         .build();
 
-    // let docker = Docker::connect_with_defaults().unwrap();
-    // let image = docker.create_image(
-    //     String::from("notebook-image"),
-    //     String::from("notebook-containter:latest"),
-    // ).unwrap();
+    // extract code blocks from markdown
+    let mut blocks: Vec<CodeBlock> = Vec::new();
+    let mut events: Vec<Event> = parser
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| extract_blocks(index, event, &mut blocks))
+        .collect();
 
-    let (mut events, blocks) = get_blocks(notebook_path, parser);
+    // Save code blocks to files
+    for block in &blocks {
+        if let Some(ref file_name) = block.options.name {
+            let path = notebook_path.join(file_name);
+            let mut f = File::create(path).unwrap();
+            f.write_all(block.code.as_bytes()).unwrap();
+            f.sync_all().unwrap();
+        }
+    }
+
     let mut insert_offset = 0;
+
+    let block_wrapper_begin = String::from(r#"<div class="block-wrapper">"#);
+    let block_wrapper_end = String::from(r#"</div>"#);
+
+    let collabsible_wrapper_begin = |index: usize, id: &str, box_name: &str| {
+        format!(
+            r#"
+            <div class="wrap-collabsible code-{1}">
+                <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
+                <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
+                <div class="collapsible-content">
+                    <div class="content-inner">"#,
+            index, id, box_name
+        )
+    };
+
+    let collabsible_wrapper_end = || {
+        String::from(
+            r#"
+                    </div>
+                </div>
+            </div>"#,
+        )
+    };
+
+    let insert_html =
+        |index: usize, insert_offset: &mut usize, html: String, events: &mut Vec<Event>| {
+            events.insert(index + *insert_offset, Event::Html(Cow::from(html)));
+            *insert_offset += 1;
+        };
+
     for (index, block) in blocks.iter().enumerate() {
-        match block.options.cmd {
-            Some(ref cmd) => {
-                println!("Running cmd: {}", cmd);
+        // begin outer wrapper
+        insert_html(
+            block.start_index,
+            &mut insert_offset,
+            block_wrapper_begin.clone(),
+            &mut events,
+        );
 
-                let mut cmd_parts = cmd.split_whitespace();
-                let program = cmd_parts.next().unwrap();
-                let args: Vec<&str> = cmd_parts.collect();
+        // wrap code
+        let input_name = match block.options.name {
+            Some(ref name) => format!("INPUT: {}", name),
+            None => String::from("INPUT"),
+        };
+        insert_html(
+            block.start_index,
+            &mut insert_offset,
+            collabsible_wrapper_begin(index, "in", &input_name),
+            &mut events,
+        );
+        insert_html(
+            block.end_index + 1,
+            &mut insert_offset,
+            collabsible_wrapper_end(),
+            &mut events,
+        );
 
-                // Run command
-                // let output = Command::new(program)
-                //     .current_dir(notebook_path)
-                //     .args(args)
-                //     .output()
-                //     .expect("ls command failed to start");
-                // let stdout = String::from_utf8_lossy(&output.stdout);
-                // let stderr = String::from_utf8_lossy(&output.stderr);
+        if let Some(ref cmd) = block.options.cmd {
+            let (stdout, stderr) = exec_cmd(&container_id, cmd);
 
-                let containers = docker.containers();
-                let container = containers.get(&container_id);
-                // container.start().unwrap();
-                let result = container.exec(&options).unwrap();
-                let stdout = result.stdout;
-                let stderr = result.stderr;
-
-                let input_name = match block.options.name {
-                    Some(ref name) => format!("INPUT: {}", name),
-                    None => String::from("INPUT"),
-                };
-
+            // insert output
+            if stdout != "" {
                 let output_name = match block.options.cmd {
                     Some(ref cmd) => format!("OUTPUT: {}", cmd),
                     None => String::from("OUTPUT"),
                 };
 
+                let output_html = format!(
+                    "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
+                    collabsible_wrapper_begin(index, "out", &output_name),
+                    stdout,
+                    collabsible_wrapper_end()
+                );
+                insert_html(
+                    block.end_index + 1,
+                    &mut insert_offset,
+                    output_html,
+                    &mut events,
+                );
+            }
+
+            // insert error output
+            if stderr != "" {
                 let error_name = match block.options.cmd {
                     Some(ref cmd) => format!("ERROR: {}", cmd),
                     None => String::from("ERROR"),
                 };
 
-                let block_wrapper_begin = String::from(
-                    r#"
-                    <div class="block-wrapper">"#,
+                let output_html = format!(
+                    "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
+                    collabsible_wrapper_begin(index, "error", &error_name),
+                    stderr,
+                    collabsible_wrapper_end()
                 );
-
-                let block_wrapper_end = String::from(
-                    r#"
-                    </div>"#,
+                insert_html(
+                    block.end_index + 1,
+                    &mut insert_offset,
+                    output_html,
+                    &mut events,
                 );
-
-                // Insert wrapper
-                let wrapper_begin = |id: &str, box_name: &str| {
-                    format!(
-                        r#"
-                    <div class="wrap-collabsible code-{1}">
-                        <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
-                        <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
-                        <div class="collapsible-content">
-                            <div class="content-inner">"#,
-                        index, id, box_name
-                    )
-                };
-
-                let wrapper_end = || {
-                    String::from(
-                        r#"
-                    </div>
-                        </div>
-                            </div>"#,
-                    )
-                };
-
-                // TODO clean up all the inserts
-                // Consider popping the elements,
-                // then appending a new vector with all the custom html
-                events.insert(
-                    block.start_index + insert_offset,
-                    Event::Html(Cow::from(block_wrapper_begin)),
-                );
-                insert_offset += 1;
-
-                events.insert(
-                    block.start_index + insert_offset,
-                    Event::Html(Cow::from(wrapper_begin("in", &input_name))),
-                );
-                insert_offset += 1;
-
-                events.insert(
-                    block.end_index + insert_offset + 1,
-                    Event::Html(Cow::from(wrapper_end())),
-                );
-                insert_offset += 1;
-
-                // Insert node for output
-                if stdout != "" {
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(wrapper_begin("out", &output_name))),
-                    );
-                    insert_offset += 1;
-
-                    let output_html = format!(
-                        "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
-                        stdout
-                    );
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(output_html)),
-                    );
-                    insert_offset += 1;
-
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(wrapper_end())),
-                    );
-                    insert_offset += 1;
-                }
-
-                // Insert node for error
-                if stderr != "" {
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(wrapper_begin("error", &error_name))),
-                    );
-                    insert_offset += 1;
-
-                    let output_html = format!(
-                        "<pre><code class=\"language-nohighlight hljs\">{}</code></pre>",
-                        stderr
-                    );
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(output_html)),
-                    );
-                    insert_offset += 1;
-
-                    events.insert(
-                        block.end_index + insert_offset + 1,
-                        Event::Html(Cow::from(wrapper_end())),
-                    );
-                    insert_offset += 1;
-                }
-
-                events.insert(
-                    block.end_index + insert_offset + 1,
-                    Event::Html(Cow::from(block_wrapper_end)),
-                );
-                insert_offset += 1;
             }
-            None => println!("No command"),
         }
+
+        // end outer wrapper
+        insert_html(
+            block.end_index + 1,
+            &mut insert_offset,
+            block_wrapper_end.clone(),
+            &mut events,
+        );
     }
 
+    println!("{}", "Build events");
+
     // Stop the container
-    let containers = docker.containers();
-    let container = containers.get(&container_id);
-    container.stop(None).unwrap();
+    // let containers = docker.containers();
+    // let container = containers.get(&container_id);
+    // container.stop(None).unwrap();
+
+    println!("Stopped containter");
 
     // Transform events back into interator
     let parser = events.into_iter();
-
-    // let parser = parser.map(|event| {println!("event: {:?}", event); event});
 
     let mut html_buf = String::new();
     html::push_html(&mut html_buf, parser);
@@ -347,7 +313,7 @@ pub fn parse_markdown() -> String {
     let code_highlighting = r#"
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/atom-one-dark.min.css">
         <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
-        <script>hljs.initHighlightingOnLoad();</script>"#;
+        <script>//hljs.initHighlightingOnLoad();</script>"#;
     let style = "<link rel=\"stylesheet\" type=\"text/css\" href=\"res/style.css\">";
 
     format!("{}\n\n{}\n\n{}", code_highlighting, style, html_buf)

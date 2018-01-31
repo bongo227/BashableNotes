@@ -1,5 +1,25 @@
+```
+def foo():
+    print "bar"
+```
+
+```python
+def foo():
+    print "bar"
+```
+
+```python {}
+def foo():
+    print "bar"
+```
+
+```blah
+foo bar
+```
+
 ```dockerfile {"name":"Dockerfile", "cmd":"true"}
 FROM ubuntu:latest
+RUN true
 ```
 
 ```bash {"name":"install.sh", "cmd":"bash install.sh"}
