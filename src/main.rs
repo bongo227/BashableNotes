@@ -12,6 +12,9 @@ extern crate serde_json;
 
 extern crate shiplift;
 
+#[macro_use] extern crate log;
+extern crate env_logger;
+
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};
 use iron::headers::ContentType;
@@ -57,14 +60,8 @@ fn hello_world(_: &mut Request) -> IronResult<Response> {
 }
 
 fn main() {
-    // let docker = Docker::connect_with_defaults().unwrap();
-    // let opts = ContainerListOptions::default().all();
-    // let containers = docker.containers(opts).unwrap();
-    // for container in &containers {
-    //     println!("{:?}", container);
-    // }
-    // return;
- 
+    env_logger::init();
+
     let mut chain = Chain::new(hello_world);
     chain.link_before(ResponseTime);
     chain.link_after(ResponseTime);
@@ -78,5 +75,7 @@ fn main() {
     mount.mount("res/", Static::new(Path::new("res/")));
     mount.mount("notebook/", Static::new(Path::new("notebook/")));
 
-    Iron::new(mount).http("localhost:3000").unwrap();
+    let address = "localhost:3000";
+    info!("Starting server on http://{}", address);
+    Iron::new(mount).http(address).unwrap();
 }

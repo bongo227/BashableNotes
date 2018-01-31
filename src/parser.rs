@@ -27,6 +27,8 @@ struct CodeBlock {
 }
 
 fn build_docker_container(notebook_path: &Path) {
+    info!("building docker container");
+
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("build")
@@ -44,10 +46,13 @@ fn build_docker_container(notebook_path: &Path) {
             stdout, stderr
         );
     }
-    println!("docker container built");
+
+    info!("docker container built");
 }
 
 fn start_docker_container(notebook_path: &Path) -> String {
+    info!("starting docker container");
+
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("run")
@@ -66,6 +71,7 @@ fn start_docker_container(notebook_path: &Path) -> String {
         );
     }
 
+    info!("docker container {} started", container_id);
     container_id.to_string()
 }
 
@@ -113,7 +119,7 @@ fn extract_blocks<'a>(index: usize, event: Event<'a>, blocks: &mut Vec<CodeBlock
 }
 
 fn exec_cmd(container_id: &String, cmd: &String) -> (String, String) {
-    println!("Running cmd: {}", cmd);
+    info!("executing command: {}", cmd);
 
     // let mut cmd_parts = cmd.split_whitespace();
     // let program = cmd_parts.next().unwrap();
@@ -135,11 +141,13 @@ pub fn parse_markdown() -> String {
     // Create notebook directory
     let notebook_path = Path::new("notebook/");
     fs::create_dir_all(notebook_path).unwrap();
+    info!("creating notebook directory");
 
     // Read markdown file
     let mut f = File::open(Path::new("res/test.md")).unwrap();
     let mut contents = String::new();
     f.read_to_string(&mut contents).unwrap();
+    info!("read markdown file");
 
     // Create parser
     let options = Options::all();
@@ -170,6 +178,7 @@ pub fn parse_markdown() -> String {
         .enumerate()
         .map(|(index, event)| extract_blocks(index, event, &mut blocks))
         .collect();
+    info!("extracted code blocks");
 
     // Save code blocks to files
     for block in &blocks {
@@ -178,6 +187,8 @@ pub fn parse_markdown() -> String {
             let mut f = File::create(path).unwrap();
             f.write_all(block.code.as_bytes()).unwrap();
             f.sync_all().unwrap();
+
+            info!("saved file: {}", file_name);
         }
     }
 
@@ -295,20 +306,17 @@ pub fn parse_markdown() -> String {
         );
     }
 
-    println!("{}", "Build events");
-
     // Stop the container
+    info!("stopping container");
     // let containers = docker.containers();
     // let container = containers.get(&container_id);
     // container.stop(None).unwrap();
+    info!("container stopped");
 
-    println!("Stopped containter");
-
-    // Transform events back into interator
-    let parser = events.into_iter();
-
+    info!("building html");
     let mut html_buf = String::new();
-    html::push_html(&mut html_buf, parser);
+    html::push_html(&mut html_buf, events.into_iter());
+    info!("html built");
 
     let code_highlighting = r#"
         <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/atom-one-dark.min.css">
