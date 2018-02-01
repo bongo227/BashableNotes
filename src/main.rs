@@ -1,3 +1,6 @@
+#![feature(generators, generator_trait)]
+#![feature(conservative_impl_trait)]
+
 extern crate iron;
 extern crate mount;
 extern crate pulldown_cmark;

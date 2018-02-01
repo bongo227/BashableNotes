@@ -15,21 +15,26 @@ use std::env;
 
 pub struct MarkdownRenderer<'a> {
     notebook_path: &'a Path,
+    pub blocks: Vec<CodeBlock>,
+    pub docker: Docker,
+    pub container_id: String,
+    env_exec_cmd: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-struct CodeBlockOptions {
+pub struct CodeBlockOptions {
     hide: Option<bool>,
     name: Option<String>,
-    cmd: Option<String>,
+    pub cmd: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-struct CodeBlock {
-    options: CodeBlockOptions,
+#[derive(Clone)]
+pub struct CodeBlock {
+    pub options: CodeBlockOptions,
     start_index: usize,
     end_index: usize,
     code: String,
+    pub index: usize,
 }
 
 impl<'a> MarkdownRenderer<'a> {
@@ -40,7 +45,15 @@ impl<'a> MarkdownRenderer<'a> {
         fs::create_dir_all(notebook_path).unwrap();
         info!("created notebook directory");
 
-        MarkdownRenderer { notebook_path }
+        let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
+
+        MarkdownRenderer {
+            notebook_path,
+            blocks: Vec::new(),
+            docker: Docker::new(),
+            container_id: String::new(),
+            env_exec_cmd,
+        }
     }
 
     fn build_docker_container(&self) {
@@ -100,6 +113,20 @@ impl<'a> MarkdownRenderer<'a> {
         container_id.to_string()
     }
 
+    pub fn stop_docker_container(&self) {
+        // Stop the container
+        if self.env_exec_cmd {
+            info!("stopping container");
+            let containers = self.docker.containers();
+            let container = containers.get(&self.container_id);
+            if let Err(err) = container.stop(None) {
+                error!("error stopping container: {}", err);
+            } else {
+                info!("container stopped");
+            }
+        }
+    }
+
     fn parse_code_block(&self, settings: String, index: usize) -> CodeBlock {
         let mut iter = settings.split_whitespace();
         let language = match iter.next() {
@@ -120,6 +147,7 @@ impl<'a> MarkdownRenderer<'a> {
             start_index: index,
             end_index: 0,
             code: String::new(),
+            index: index,
         }
     }
 
@@ -159,7 +187,7 @@ impl<'a> MarkdownRenderer<'a> {
         (events, blocks)
     }
 
-    fn exec_cmd(&self, docker: &Docker, container_id: &str, cmd: &String) -> (String, String) {
+    pub fn exec_cmd(&self, docker: &Docker, container_id: &str, cmd: &String) -> (String, String) {
         info!("building command");
         let options = ExecContainerOptions::builder()
             .cmd(vec![
@@ -190,9 +218,26 @@ impl<'a> MarkdownRenderer<'a> {
         }
     }
 
-    pub fn parse_markdown(&self) -> String {
-        let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
-        info!("variable EXEC_CMD = {}", env_exec_cmd);
+    pub fn collabsible_wrapper_begin(&self, index: usize, id: &str, box_name: &str) -> String {
+        format!(r#"
+            <div class="wrap-collabsible code-{1}">
+                <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
+                <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
+                <div class="collapsible-content">
+                    <div class="content-inner">"#,
+            index, id, box_name
+        )
+    }
+
+    pub fn collabsible_wrapper_end(&self) -> String {
+        String::from(r#"
+                    </div>
+                </div>
+            </div>"#)
+    }
+
+    pub fn parse_markdown(&mut self) -> String {
+        info!("variable EXEC_CMD = {}", self.env_exec_cmd);
 
         // Read markdown file
         let mut f = File::open(Path::new("res/test.md")).unwrap();
@@ -206,11 +251,12 @@ impl<'a> MarkdownRenderer<'a> {
 
         // extract code blocks from markdown
         let (mut events, blocks) = self.extract_blocks(parser);
+        self.blocks = blocks;
         info!("extracted code blocks");
 
         // Save code blocks to files
-        if env_exec_cmd {
-            for block in &blocks {
+        if self.env_exec_cmd {
+            for block in &self.blocks {
                 if let Some(ref file_name) = block.options.name {
                     let path = self.notebook_path.join(file_name);
                     let mut f = File::create(path).unwrap();
@@ -223,39 +269,13 @@ impl<'a> MarkdownRenderer<'a> {
         }
 
         // Setup docker enviroment
-        let mut container_id = String::new();
-        let docker = Docker::new();
-        if env_exec_cmd {
+        if self.env_exec_cmd {
             self.build_docker_container();
-            container_id = self.start_docker_container();
-            assert_ne!(container_id, "")
+            self.container_id = self.start_docker_container();
+            assert_ne!(self.container_id, "")
         }
 
         let mut insert_offset = 0;
-
-        let block_wrapper_begin = String::from(r#"<div class="block-wrapper">"#);
-        let block_wrapper_end = String::from(r#"</div>"#);
-
-        let collabsible_wrapper_begin = |index: usize, id: &str, box_name: &str| {
-            format!(
-                r#"
-            <div class="wrap-collabsible code-{1}">
-                <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
-                <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
-                <div class="collapsible-content">
-                    <div class="content-inner">"#,
-                index, id, box_name
-            )
-        };
-
-        let collabsible_wrapper_end = || {
-            String::from(
-                r#"
-                    </div>
-                </div>
-            </div>"#,
-            )
-        };
 
         let insert_html =
             |index: usize, insert_offset: &mut usize, html: String, events: &mut Vec<Event>| {
@@ -263,7 +283,11 @@ impl<'a> MarkdownRenderer<'a> {
                 *insert_offset += 1;
             };
 
-        for (index, block) in blocks.iter().enumerate() {
+        for block in &self.blocks {
+            let block_wrapper_begin = format!(r#"<div class="block-wrapper" id="block-{}">"#, block.index);
+            let block_wrapper_end = String::from(r#"</div>"#);
+
+
             // begin outer wrapper
             insert_html(
                 block.start_index,
@@ -280,63 +304,15 @@ impl<'a> MarkdownRenderer<'a> {
             insert_html(
                 block.start_index,
                 &mut insert_offset,
-                collabsible_wrapper_begin(index, "in", &input_name),
+                self.collabsible_wrapper_begin(block.index, "in", &input_name),
                 &mut events,
             );
             insert_html(
                 block.end_index + 1,
                 &mut insert_offset,
-                collabsible_wrapper_end(),
+                self.collabsible_wrapper_end(),
                 &mut events,
             );
-
-            if env_exec_cmd {
-                if let Some(ref cmd) = block.options.cmd {
-                    let (stdout, stderr) = self.exec_cmd(&docker, &container_id, cmd);
-
-                    // insert output
-                    if stdout != "" {
-                        let output_name = match block.options.cmd {
-                            Some(ref cmd) => format!("OUTPUT: {}", cmd),
-                            None => String::from("OUTPUT"),
-                        };
-
-                        let output_html = format!(
-                            "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
-                            collabsible_wrapper_begin(index, "out", &output_name),
-                            stdout,
-                            collabsible_wrapper_end()
-                        );
-                        insert_html(
-                            block.end_index + 1,
-                            &mut insert_offset,
-                            output_html,
-                            &mut events,
-                        );
-                    }
-
-                    // insert error output
-                    if stderr != "" {
-                        let error_name = match block.options.cmd {
-                            Some(ref cmd) => format!("ERROR: {}", cmd),
-                            None => String::from("ERROR"),
-                        };
-
-                        let output_html = format!(
-                            "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
-                            collabsible_wrapper_begin(index, "error", &error_name),
-                            stderr,
-                            collabsible_wrapper_end()
-                        );
-                        insert_html(
-                            block.end_index + 1,
-                            &mut insert_offset,
-                            output_html,
-                            &mut events,
-                        );
-                    }
-                }
-            }
 
             // end outer wrapper
             insert_html(
@@ -347,24 +323,11 @@ impl<'a> MarkdownRenderer<'a> {
             );
         }
 
-        // Stop the container
-        if env_exec_cmd {
-            info!("stopping container");
-            let containers = docker.containers();
-            let container = containers.get(&container_id);
-            if let Err(err) = container.stop(None) {
-                error!("error stopping container: {}", err);
-            } else {
-                info!("container stopped");
-            }
-        }
-
         info!("building html");
         let mut html_buf = String::new();
         html::push_html(&mut html_buf, events.into_iter());
         info!("html built");
 
-        
         html_buf
     }
 }

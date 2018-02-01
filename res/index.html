@@ -24,6 +24,8 @@
                     console.log(`populating id: ${msg_json.id}`);
                     if (msg_json.id === "document") {
                         document.body.innerHTML = msg_json.data;
+                    } else {
+                        document.getElementById("block-" + msg_json.id).innerHTML += msg_json.data;
                     }
 
                     hljs.initHighlighting.called = false;

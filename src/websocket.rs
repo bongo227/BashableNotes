@@ -9,6 +9,10 @@ use parser::MarkdownRenderer;
 use regex;
 use serde_json::to_string;
 
+use std::ops::{Generator, GeneratorState};
+
+use std::thread;
+
 const PING: Token = Token(1);
 const EXPIRE: Token = Token(2);
 
@@ -25,6 +29,17 @@ pub struct JsonMsg {
     data: String,
 }
 
+struct OutputBlock {
+    output_type: OutputType,
+    index: usize,
+    output: String,
+}
+
+pub enum OutputType {
+    Stdout,
+    Stderr,
+}
+
 impl Handler for Server {
     fn on_open(&mut self, _: Handshake) -> Result<()> {
         // schedule a timeout to send a ping every 5 seconds
@@ -34,26 +49,103 @@ impl Handler for Server {
     }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        println!("Server got message '{}'. ", msg);
+        let clone1 = self.out.clone();
+        let clone2 = self.out.clone();
+        let clone3 = self.out.clone();
 
-        if let Ok(text) = msg.into_text() {
-            if text == "get document" {
-                self.out
-                    .send(Message::text(String::from("rendering markdown...")))
-                    .unwrap();
-                let md_renderer = MarkdownRenderer::new();
-                let html = md_renderer.parse_markdown();
-                
-                let json_msg = JsonMsg{
-                    id: String::from("document"),
-                    data: html,
-                };
+        thread::spawn(move || {
+            println!("Server got message '{}'. ", msg);
 
-                let json_str = to_string(&json_msg).unwrap();
+            if let Ok(text) = msg.into_text() {
+                if text == "get document" {
+                    let msg = Message::text(String::from("rendering markdown..."));
+                    thread::spawn(move || clone1.send(msg).unwrap());
 
-                return self.out.send(Message::text(json_str));
+                    let mut md_renderer = MarkdownRenderer::new();
+                    let html = md_renderer.parse_markdown();
+
+                    let mut output_generator = || {
+                        for block in &md_renderer.blocks {
+                            if let Some(ref cmd) = block.options.cmd {
+                                let (stdout, stderr) = md_renderer.exec_cmd(
+                                    &md_renderer.docker,
+                                    &md_renderer.container_id,
+                                    &cmd,
+                                );
+
+                                if stdout != "" {
+                                    let output_name = match block.options.cmd {
+                                        Some(ref cmd) => format!("OUTPUT: {}", cmd),
+                                        None => String::from("OUTPUT"),
+                                    };
+
+                                    let output_html = format!(
+                                        "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}", 
+                                        md_renderer.collabsible_wrapper_begin(block.index, "out", &output_name), 
+                                        stdout, 
+                                        md_renderer.collabsible_wrapper_end());
+
+                                    yield OutputBlock {
+                                        output_type: OutputType::Stdout,
+                                        index: block.index,
+                                        output: output_html,
+                                    };
+                                }
+
+                                if stderr != "" {
+                                    let error_name = match block.options.cmd {
+                                        Some(ref cmd) => format!("ERROR: {}", cmd),
+                                        None => String::from("ERROR"),
+                                    };
+                                    
+                                    let output_html = format!(
+                                        "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}", 
+                                        md_renderer.collabsible_wrapper_begin(block.index, "out", &error_name),
+                                        stderr,
+                                        md_renderer.collabsible_wrapper_end());
+
+                                    yield OutputBlock {
+                                        output_type: OutputType::Stdout,
+                                        index: block.index,
+                                        output: output_html,
+                                    };
+                                }
+                            }
+                        }
+
+                        return ();
+                    };
+
+                    let json_msg = JsonMsg {
+                        id: String::from("document"),
+                        data: html,
+                    };
+
+                    let json_str = to_string(&json_msg).unwrap();
+                    let msg = Message::text(json_str);
+                    thread::spawn(move || clone2.send(msg).unwrap());
+
+                    loop {
+                        match output_generator.resume() {
+                            GeneratorState::Yielded(output) => {
+                                let json_msg = JsonMsg {
+                                    id: format!("{}", output.index),
+                                    data: output.output,
+                                };
+
+                                let json_str = to_string(&json_msg).unwrap();
+                                let msg = Message::text(json_str);
+                                let clone4 = clone3.clone();
+                                thread::spawn(move || clone4.send(msg).unwrap());
+                            }
+                            GeneratorState::Complete(_) => break,
+                        }
+                    }
+
+                    md_renderer.stop_docker_container();
+                }
             }
-        }
+        });
 
         self.out.send(Message::text("unknown message"))
     }
@@ -69,8 +161,8 @@ impl Handler for Server {
             self.out.cancel(t).unwrap();
         }
 
-        println!("Shutting down server after first connection closes.");
-        self.out.shutdown().unwrap();
+        // println!("Shutting down server after first connection closes.");
+        // self.out.shutdown().unwrap();
     }
 
     fn on_error(&mut self, err: Error) {

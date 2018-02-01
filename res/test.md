@@ -9,6 +9,12 @@ RUN mkdir -p $HOME/.config/matplotlib/
 RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
 ```
 
+```python {"name":"sleep.py", "cmd":"python sleep.py"}
+import time
+time.sleep(5)
+print "5 seconds!"
+```
+
 ```python {"name":"helloworld.py", "cmd":"python helloworld.py"}
 print "Hello world!"
 ```
