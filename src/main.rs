@@ -16,18 +16,25 @@ extern crate env_logger;
 #[macro_use]
 extern crate log;
 
+extern crate ws;
+extern crate regex;
+
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};
 use iron::headers::ContentType;
 use time::precise_time_ns;
 
-mod parser;
-use parser::parse_markdown;
-
 use std::path::Path;
 use staticfile::Static;
 use mount::Mount;
 use router::Router;
+
+mod parser;
+
+mod websocket;
+use websocket::Server;
+use ws::{listen};
+use std::thread;
 
 struct ResponseTime;
 
@@ -52,7 +59,8 @@ impl AfterMiddleware for ResponseTime {
 
 fn hello_world(_: &mut Request) -> IronResult<Response> {
     // Parse markdown
-    let html = parse_markdown();
+    // let html = parse_markdown();
+    let html = include_str!("../res/index.html");
 
     // Serve up html
     let resp = Response::with((ContentType::html().0, iron::status::Ok, html));
@@ -62,20 +70,41 @@ fn hello_world(_: &mut Request) -> IronResult<Response> {
 fn main() {
     env_logger::init();
 
-    let mut chain = Chain::new(hello_world);
-    chain.link_before(ResponseTime);
-    chain.link_after(ResponseTime);
+    let ws_handle = thread::spawn(|| {
+        info!("websocket thread created");
+        
+        let ws_address = "127.0.0.1:3012";
+        info!("Starting websocket on ws://{}", ws_address);
+        listen(ws_address, |out| {
+            Server {
+                out: out,
+                ping_timeout: None,
+                expire_timeout: None,
+            }
+        }).unwrap();
+    });
 
-    let mut router = Router::new();
-    router.get("/", chain, "document");
+    let http_handle = thread::spawn(|| {
+        info!("webserver thread created");
+        
+        let mut chain = Chain::new(hello_world);
+        chain.link_before(ResponseTime);
+        chain.link_after(ResponseTime);
 
-    // Serve the shared JS/CSS at /
-    let mut mount = Mount::new();
-    mount.mount("/", router);
-    mount.mount("res/", Static::new(Path::new("res/")));
-    mount.mount("notebook/", Static::new(Path::new("notebook/")));
+        let mut router = Router::new();
+        router.get("/", chain, "document");
 
-    let address = "localhost:3000";
-    info!("Starting server on http://{}", address);
-    Iron::new(mount).http(address).unwrap();
+        // Serve the shared JS/CSS at /
+        let mut mount = Mount::new();
+        mount.mount("/", router);
+        mount.mount("res/", Static::new(Path::new("res/")));
+        mount.mount("notebook/", Static::new(Path::new("notebook/")));
+
+        let address = "localhost:3000";
+        info!("Starting server on http://{}", address);
+        Iron::new(mount).http(address).unwrap();
+    });
+
+    ws_handle.join().unwrap();
+    http_handle.join().unwrap();
 }
