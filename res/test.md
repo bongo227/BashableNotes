@@ -1,22 +1,3 @@
-```
-def foo():
-    print "bar"
-```
-
-```python
-def foo():
-    print "bar"
-```
-
-```python {}
-def foo():
-    print "bar"
-```
-
-```blah
-foo bar
-```
-
 ```dockerfile {"name":"Dockerfile", "cmd":"true"}
 FROM ubuntu:latest
 RUN apt-get update
@@ -30,15 +11,6 @@ RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
 
 ```python {"name":"helloworld.py", "cmd":"python helloworld.py"}
 print "Hello world!"
-```
-
-```python {"name":"matplotdebug.py", "cmd":"python matplotdebug.py"}
-import matplotlib
-print(matplotlib.matplotlib_fname())
-```
-
-```bash {"name":"matplot.sh", "cmd":"bash matplot.sh"}
-cat /usr/local/lib/python2.7/dist-packages/matplotlib/mpl-data/matplotlibrc
 ```
 
 ```python {"name":"bank.py", "cmd":"python bank.py"}
@@ -72,11 +44,8 @@ plt.savefig("test.svg")
 ![graph](notebook/test.svg)
 
 ```bash {"name":"cmd.sh", "cmd":"bash cmd.sh"}
-cat cmd.sh
-echo "Hello bash!"
 ls -a
 ```
-
 
  Hello world this is some text
 
