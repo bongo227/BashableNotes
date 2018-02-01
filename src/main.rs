@@ -12,8 +12,9 @@ extern crate serde_json;
 
 extern crate shiplift;
 
-#[macro_use] extern crate log;
 extern crate env_logger;
+#[macro_use]
+extern crate log;
 
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};
@@ -27,7 +28,6 @@ use std::path::Path;
 use staticfile::Static;
 use mount::Mount;
 use router::Router;
-
 
 struct ResponseTime;
 

@@ -19,17 +19,26 @@ foo bar
 
 ```dockerfile {"name":"Dockerfile", "cmd":"true"}
 FROM ubuntu:latest
-RUN true
-```
-
-```bash {"name":"install.sh", "cmd":"bash install.sh"}
-# sudo -H pip install setuptools
-# sudo -H pip install matplotlib
-# sudo apt-get install -y python-tk
+RUN apt-get update
+RUN apt-get install -y python
+RUN apt-get install -y python-pip
+RUN apt-get install -y python-tk
+RUN pip install matplotlib
+RUN mkdir -p $HOME/.config/matplotlib/
+RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
 ```
 
 ```python {"name":"helloworld.py", "cmd":"python helloworld.py"}
 print "Hello world!"
+```
+
+```python {"name":"matplotdebug.py", "cmd":"python matplotdebug.py"}
+import matplotlib
+print(matplotlib.matplotlib_fname())
+```
+
+```bash {"name":"matplot.sh", "cmd":"bash matplot.sh"}
+cat /usr/local/lib/python2.7/dist-packages/matplotlib/mpl-data/matplotlibrc
 ```
 
 ```python {"name":"bank.py", "cmd":"python bank.py"}

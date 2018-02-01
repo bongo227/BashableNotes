@@ -11,6 +11,8 @@ use std::process::Command;
 
 use shiplift::{Docker, ExecContainerOptions};
 
+use std::env;
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 struct CodeBlockOptions {
     hide: Option<bool>,
@@ -32,6 +34,8 @@ fn build_docker_container(notebook_path: &Path) {
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("build")
+        // .arg("--no-cache")
+        .arg("--network=host") // share the network with host
         .arg(".")
         .arg("-t")
         .arg("notebook-container")
@@ -53,11 +57,17 @@ fn build_docker_container(notebook_path: &Path) {
 fn start_docker_container(notebook_path: &Path) -> String {
     info!("starting docker container");
 
+    // debug!("docker folder link: {}", format!("{}:/home/notebook", notebook_path.to_str().unwrap()));
+    // debug!("nbpath: {:?}", );
+
     let output = Command::new("docker")
         .current_dir(notebook_path)
         .arg("run")
-        .arg("-i")  // keep container alive even though we are not attached
+        .arg("-i") // keep container alive even though we are not attached
         .arg("-d") // run in the background
+        .arg("-v") // link notebook folder
+        .arg(format!("{}:/home", notebook_path.canonicalize().unwrap().to_str().unwrap()))
+        .arg("--net=host") // share the network with host
         .arg("notebook-container")
         .output()
         .unwrap();
@@ -98,46 +108,77 @@ fn parse_code_block(settings: String, index: usize) -> CodeBlock {
     }
 }
 
-fn extract_blocks<'a>(index: usize, event: Event<'a>, blocks: &mut Vec<CodeBlock>) -> Event<'a> {
-    match event {
-        Event::Start(Tag::CodeBlock(ref settings)) => {
-            let settings = settings.clone().into_owned();
-            blocks.push(parse_code_block(settings, index));
-        }
+fn extract_blocks<'a>(parser: Parser) -> (Vec<Event>, Vec<CodeBlock>) {
+    let mut in_block = false;
+    let mut blocks = Vec::new();
+    let events: Vec<Event> = parser
+        .into_iter()
+        .enumerate()
+        .map(|(index, event)| {
+            match event {
+                Event::Start(Tag::CodeBlock(ref settings)) => {
+                    let settings = settings.clone().into_owned();
+                    blocks.push(parse_code_block(settings, index));
+                    in_block = true;
+                }
 
-        Event::Text(ref text) => {
-            blocks.last_mut().map(|block| block.code.push_str(&text));
-        }
+                Event::Text(ref text) => {
+                    if in_block {
+                        blocks.last_mut().map(|block| block.code.push_str(&text));
+                    }
+                }
 
-        Event::End(Tag::CodeBlock(_)) => {
-            blocks.last_mut().map(|block| block.end_index = index);
-        }
+                Event::End(Tag::CodeBlock(_)) => {
+                    if in_block {
+                        blocks.last_mut().map(|block| block.end_index = index);
+                        in_block = false;
+                    }
+                }
 
-        _ => {}
-    }
-    event
+                _ => {}
+            }
+            event
+        })
+        .collect();
+
+    (events, blocks)
 }
 
-fn exec_cmd(container_id: &String, cmd: &String) -> (String, String) {
+fn exec_cmd(docker: &Docker, container_id: &str, cmd: &String) -> (String, String) {
+    info!("building command");
+    let options = ExecContainerOptions::builder()
+        .cmd(vec![
+            "bash",
+            "-c",
+            // "echo -n \"echo VAR=$VAR on stdout\"; echo -n \"echo VAR=$VAR on stderr\" >&2",
+            format!("cd home && {}", cmd).as_str(),
+        ])
+        .env(vec!["VAR=value"])
+        .attach_stdout(true)
+        .attach_stderr(true)
+        .build();
+    info!("command build");
+
     info!("executing command: {}", cmd);
-
-    // let mut cmd_parts = cmd.split_whitespace();
-    // let program = cmd_parts.next().unwrap();
-    // let args: Vec<&str> = cmd_parts.collect();
-
-    // let containers = docker.containers();
-    // let container = containers.get(&container_id);
-    // let result = container.exec(&options).unwrap();
-    // let stdout = result.stdout;
-    // let stderr = result.stderr;
-
-    let stdout = String::from("test out");
-    let stderr = String::from("test error");
-
-    (stdout, stderr)
+    let containers = docker.containers();
+    let container = containers.get(&container_id);
+    let result = container.exec(&options);
+    match result {
+        Ok(result) => {
+            info!("command executed successfully");
+            (result.stdout, result.stderr)
+        }
+        Err(err) => {
+            error!("error executing command: {}", err);
+            (String::new(), String::from("BashableNotes internal error"))
+        }
+    }
 }
 
 pub fn parse_markdown() -> String {
+    let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
+    info!("variable EXEC_CMD = {}", env_exec_cmd);
+
     // Create notebook directory
     let notebook_path = Path::new("notebook/");
     fs::create_dir_all(notebook_path).unwrap();
@@ -153,43 +194,31 @@ pub fn parse_markdown() -> String {
     let options = Options::all();
     let parser = Parser::new_ext(&contents, options);
 
-    // Setup docker enviroment
-    // let docker = Docker::new();
-    // build_docker_container(notebook_path);
-    // let container_id = start_docker_container(notebook_path);
-    let container_id = String::from("foo");
-
-    // TODO: remove this
-    let options = ExecContainerOptions::builder()
-        .cmd(vec![
-            "bash",
-            "-c",
-            "echo -n \"echo VAR=$VAR on stdout\"; echo -n \"echo VAR=$VAR on stderr\" >&2",
-        ])
-        .env(vec!["VAR=value"])
-        .attach_stdout(true)
-        .attach_stderr(true)
-        .build();
-
     // extract code blocks from markdown
-    let mut blocks: Vec<CodeBlock> = Vec::new();
-    let mut events: Vec<Event> = parser
-        .into_iter()
-        .enumerate()
-        .map(|(index, event)| extract_blocks(index, event, &mut blocks))
-        .collect();
+    let (mut events, blocks) = extract_blocks(parser);
     info!("extracted code blocks");
 
     // Save code blocks to files
-    for block in &blocks {
-        if let Some(ref file_name) = block.options.name {
-            let path = notebook_path.join(file_name);
-            let mut f = File::create(path).unwrap();
-            f.write_all(block.code.as_bytes()).unwrap();
-            f.sync_all().unwrap();
+    if env_exec_cmd {
+        for block in &blocks {
+            if let Some(ref file_name) = block.options.name {
+                let path = notebook_path.join(file_name);
+                let mut f = File::create(path).unwrap();
+                f.write_all(block.code.as_bytes()).unwrap();
+                f.sync_all().unwrap();
 
-            info!("saved file: {}", file_name);
+                info!("saved file: {}", file_name);
+            }
         }
+    }
+
+    // Setup docker enviroment
+    let mut container_id = String::new();
+    let docker = Docker::new();
+    if env_exec_cmd {
+        build_docker_container(notebook_path);
+        container_id = start_docker_container(notebook_path);
+        assert_ne!(container_id, "")
     }
 
     let mut insert_offset = 0;
@@ -251,49 +280,51 @@ pub fn parse_markdown() -> String {
             &mut events,
         );
 
-        if let Some(ref cmd) = block.options.cmd {
-            let (stdout, stderr) = exec_cmd(&container_id, cmd);
+        if env_exec_cmd {
+            if let Some(ref cmd) = block.options.cmd {
+                let (stdout, stderr) = exec_cmd(&docker, &container_id, cmd);
 
-            // insert output
-            if stdout != "" {
-                let output_name = match block.options.cmd {
-                    Some(ref cmd) => format!("OUTPUT: {}", cmd),
-                    None => String::from("OUTPUT"),
-                };
+                // insert output
+                if stdout != "" {
+                    let output_name = match block.options.cmd {
+                        Some(ref cmd) => format!("OUTPUT: {}", cmd),
+                        None => String::from("OUTPUT"),
+                    };
 
-                let output_html = format!(
-                    "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
-                    collabsible_wrapper_begin(index, "out", &output_name),
-                    stdout,
-                    collabsible_wrapper_end()
-                );
-                insert_html(
-                    block.end_index + 1,
-                    &mut insert_offset,
-                    output_html,
-                    &mut events,
-                );
-            }
+                    let output_html = format!(
+                        "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
+                        collabsible_wrapper_begin(index, "out", &output_name),
+                        stdout,
+                        collabsible_wrapper_end()
+                    );
+                    insert_html(
+                        block.end_index + 1,
+                        &mut insert_offset,
+                        output_html,
+                        &mut events,
+                    );
+                }
 
-            // insert error output
-            if stderr != "" {
-                let error_name = match block.options.cmd {
-                    Some(ref cmd) => format!("ERROR: {}", cmd),
-                    None => String::from("ERROR"),
-                };
+                // insert error output
+                if stderr != "" {
+                    let error_name = match block.options.cmd {
+                        Some(ref cmd) => format!("ERROR: {}", cmd),
+                        None => String::from("ERROR"),
+                    };
 
-                let output_html = format!(
-                    "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
-                    collabsible_wrapper_begin(index, "error", &error_name),
-                    stderr,
-                    collabsible_wrapper_end()
-                );
-                insert_html(
-                    block.end_index + 1,
-                    &mut insert_offset,
-                    output_html,
-                    &mut events,
-                );
+                    let output_html = format!(
+                        "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}",
+                        collabsible_wrapper_begin(index, "error", &error_name),
+                        stderr,
+                        collabsible_wrapper_end()
+                    );
+                    insert_html(
+                        block.end_index + 1,
+                        &mut insert_offset,
+                        output_html,
+                        &mut events,
+                    );
+                }
             }
         }
 
@@ -307,11 +338,16 @@ pub fn parse_markdown() -> String {
     }
 
     // Stop the container
-    info!("stopping container");
-    // let containers = docker.containers();
-    // let container = containers.get(&container_id);
-    // container.stop(None).unwrap();
-    info!("container stopped");
+    if env_exec_cmd {
+        info!("stopping container");
+        let containers = docker.containers();
+        let container = containers.get(&container_id);
+        if let Err(err) = container.stop(None) {
+            error!("error stopping container: {}", err);
+        } else {
+            info!("container stopped");
+        }
+    }
 
     info!("building html");
     let mut html_buf = String::new();
