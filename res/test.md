@@ -1,38 +1,48 @@
-```dockerfile {"name":"Dockerfile", "cmd":"true"}
+# BashableNotes
+
+Bashable notes allows you to run arbitary commands (inside a customizable docker container) on blocks of code and display their output. Think jupyter notebooks but simpler and more flexable.
+
+## Code block options
+Code block options are written in json after specifying a language
+```markdown
+\`\`\`python {/* Insert options here */}
+print("Hello world!")
+\`\`\`
+``` 
+
+The options avalible are:
+
+- `name`: if a file name is provided, the file is saved inside the docker container
+- `cmd`: the command to run, `stdout` and `stderr` will be displayed bellow the codeblock
+- (more to come)
+
+## Code blocks in action
+
+### Custom docker container
+
+By default all commands are run inside the `ubuntu:latest` docker container, if you need additional dependencies just create a new docker file (with `{"name":"Dockerfile"}`).
+
+```Dockerfile {"name":"Dockerfile"}
 FROM ubuntu:latest
 RUN apt-get update
-RUN apt-get install -y python
-RUN apt-get install -y python-pip
-RUN apt-get install -y python-tk
-RUN pip install matplotlib
+RUN apt-get install -y python python-pip python-tk
+RUN pip install matplotlib numpy
+# Change matplotlib backend to non-interactive
 RUN mkdir -p $HOME/.config/matplotlib/
 RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
 ```
 
-```python {"name":"sleep.py", "cmd":"python sleep.py"}
-import time
-time.sleep(5)
-print "5 seconds!"
-```
+### Running python
+
+Running python is as simple as naming the code block, and setting `cmd` (i.e. `{"cmd":"python file.py"`)
 
 ```python {"name":"helloworld.py", "cmd":"python helloworld.py"}
-print "Hello world!"
+print("Hello world!")
 ```
 
-```python {"name":"bank.py", "cmd":"python bank.py"}
-class BankAccount(object):
-    def __init__(self, initial_balance=0):
-        self.balance = initial_balance
-    def deposit(self, amount):
-        self.balance += amount
-    def withdraw(self, amount):
-        self.balance -= amount
-    def overdrawn(self):
-        return self.balance < 0
-my_account = BankAccount(15)
-my_account.withdraw(5)
-print my_account.balance
-```
+### Image outputs
+
+Want to show some `matplotlib` graphs? Simple save the file then use the markdown image syntax to insert the file.
 
 ```python {"name":"graph.py", "cmd":"python graph.py"}
 import matplotlib.pyplot as plt
@@ -44,18 +54,7 @@ y = x*np.sin(2*np.pi*x)
 plt.plot(y)
 plt.axis('off')
 plt.gca().set_position([0, 0, 1, 1])
-plt.savefig("test.svg")
+plt.savefig("graph.svg")
 ```
 
-![graph](notebook/test.svg)
-
-```bash {"name":"cmd.sh", "cmd":"bash cmd.sh"}
-ls -a
-```
-
- Hello world this is some text
-
- 1. What
- 2. About
- 3. A
- 4. List!
+![graph](notebook/graph.svg)

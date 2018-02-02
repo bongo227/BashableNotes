@@ -28,6 +28,8 @@ use iron::headers::ContentType;
 use time::precise_time_ns;
 
 use std::path::Path;
+use std::fs::File;
+use std::io::Read;
 use staticfile::Static;
 use mount::Mount;
 use router::Router;
@@ -63,7 +65,10 @@ impl AfterMiddleware for ResponseTime {
 fn hello_world(_: &mut Request) -> IronResult<Response> {
     // Parse markdown
     // let html = parse_markdown();
-    let html = include_str!("../res/index.html");
+    let mut f = File::open(Path::new("res/index.html")).unwrap();
+    let mut html = String::new();
+    f.read_to_string(&mut html).unwrap();
+    info!("read markdown file");
 
     // Serve up html
     let resp = Response::with((ContentType::html().0, iron::status::Ok, html));

@@ -1,3 +1,4 @@
+<!doctype html>
 <html lang="en">
 
 <head>
@@ -6,399 +7,56 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Bashable Notes</title>
 
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/atom-one-dark.min.css">
+    <!-- <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/atom-one-dark.min.css">
     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
-    <script>hljs.initHighlightingOnLoad();</script>
+    <script>hljs.initHighlightingOnLoad();</script> -->
 
     <script>
         window.onload = () => {
-            let socket = new WebSocket("ws://127.0.0.1:3012");
-            socket.onopen = () => {
-                console.log("WebSocket open");
-                socket.send("get document");
-            };
-            socket.onmessage = (msg) => {
-                console.log(`WebSocket received \"${msg.data.slice(0, 50)}...\"`);
-                try {
-                    let msg_json = JSON.parse(msg.data);
-                    console.log(`populating id: ${msg_json.id}`);
-                    if (msg_json.id === "document") {
-                        document.body.innerHTML = msg_json.data;
-                    } else {
-                        document.getElementById("block-" + msg_json.id).innerHTML += msg_json.data;
-                    }
+            setTimeout(() => {
+                let socket = new WebSocket("ws://127.0.0.1:3012");
+                socket.onopen = () => {
+                    console.log("WebSocket open");
+                    socket.send("get document");
+                };
+                socket.onmessage = (msg) => {
+                    console.log(`WebSocket received \"${msg.data.slice(0, 50)}...\"`);
+                    try {
+                        let msg_json = JSON.parse(msg.data);
+                        console.log(`populating id: ${msg_json.id}`);
+                        if (msg_json.id === "document") {
+                            document.getElementById("document").innerHTML = msg_json.data;
+                        } else {
+                            document.getElementById("block-" + msg_json.id).innerHTML += msg_json.data;
+                        }
 
-                    hljs.initHighlighting.called = false;
-                    hljs.initHighlighting();
-                } catch(e) {
-                    console.log("not json");
+                        hljs.initHighlighting.called = false;
+                        hljs.initHighlighting();
+                    } catch (e) {
+                        console.log("not json");
+                    }
                 }
-            }
+            }, 1000);
+
+
+
         };
     </script>
 
-    <style>
-        :root {
-            /* ========= Monochrome ========= */
-            /* default text */
-            --mono-1: hsl(220, 14%, 71%);
-            --mono-2: hsl(220, 9%, 55%);
-            --mono-3: hsl(220, 10%, 40%);
-            /* ========= Colors ========= */
-            /* cyan */
-            --hue-1: hsl(187, 47%, 55%);
-            /* blue */
-            --hue-2: hsl(207, 82%, 66%);
-            /* purple */
-            --hue-3: hsl(286, 60%, 67%);
-            /* green */
-            --hue-4: hsl( 95, 38%, 62%);
-            /* red 1 */
-            --hue-5: hsl(355, 65%, 65%);
-            /* red 2 */
-            --hue-5-2: hsl( 5, 48%, 51%);
-            /* orange 1 */
-            --hue-6: hsl( 29, 54%, 61%);
-            /* orange 2 */
-            --hue-6-2: hsl( 39, 67%, 69%);
-            /* ========= Background ========= */
-            --bg: hsl(220, 13%, 22%);
-            --light-bg: hsl(220, 13%, 60%);
-            --code-bg: hsl(220, 13%, 18%);
-        }
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.6.2/css/bulma.min.css"> -->
 
-        body {
-            background: var(--bg);
-            color: var(--mono-1);
-            font-family: Helvetica, arial, sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
-            padding: 30px;
-        }
-
-        body>*:first-child {
-            margin-top: 0 !important;
-        }
-
-        body>*:last-child {
-            margin-bottom: 0 !important;
-        }
-
-        a {
-            color: var(--hue-2);
-        }
-
-        h1,
-        h2,
-        h3,
-        h4,
-        h5,
-        h6 {
-            margin: 20px 0 10px;
-            padding: 0;
-            font-weight: bold;
-            -webkit-font-smoothing: antialiased;
-            position: relative;
-        }
-
-        h1 {
-            font-size: 28px;
-        }
-
-        h2 {
-            font-size: 24px;
-            border-bottom: 1px solid #cccccc;
-        }
-
-        h3 {
-            font-size: 18px;
-        }
-
-        h4 {
-            font-size: 16px;
-        }
-
-        h5 {
-            font-size: 14px;
-        }
-
-        h6 {
-            color: var(--mono-2);
-            font-size: 14px;
-        }
-
-        p,
-        blockquote,
-        ul,
-        ol,
-        dl,
-        li,
-        table {
-            margin: 15px 0;
-        }
-
-        pre {
-            margin: 0px;
-        }
-
-        hr {
-            border: 0 none;
-            color: var(--mono-1);
-            height: 4px;
-            padding: 0;
-        }
-
-        body>h2:first-child {
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        body>h1:first-child {
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        body>h1:first-child+h2 {
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        body>h3:first-child,
-        body>h4:first-child,
-        body>h5:first-child,
-        body>h6:first-child {
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        a:first-child h1,
-        a:first-child h2,
-        a:first-child h3,
-        a:first-child h4,
-        a:first-child h5,
-        a:first-child h6 {
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        h1 p,
-        h2 p,
-        h3 p,
-        h4 p,
-        h5 p,
-        h6 p {
-            margin-top: 0;
-        }
-
-
-        /* Lists */
-
-        li p.first {
-            display: inline-block;
-        }
-
-        li {
-            margin: 0;
-        }
-
-        ul,
-        ol {
-            padding-left: 30px;
-        }
-
-        ul :first-child,
-        ol :first-child {
-            margin-top: 0;
-        }
-
-
-        /* Definition lists */
-
-        dl {
-            padding: 0;
-        }
-
-        dl dt {
-            font-size: 14px;
-            font-weight: bold;
-            font-style: italic;
-            padding: 0;
-            margin: 15px 0 5px;
-        }
-
-        dl dt:first-child {
-            padding: 0;
-        }
-
-        dl dt> :first-child {
-            margin-top: 0;
-        }
-
-        dl dt> :last-child {
-            margin-bottom: 0;
-        }
-
-        dl dd {
-            margin: 0 0 15px;
-            padding: 0 15px;
-        }
-
-        dl dd> :first-child {
-            margin-top: 0;
-        }
-
-        dl dd> :last-child {
-            margin-bottom: 0;
-        }
-
-
-        /* Blockquotes */
-
-        blockquote {
-            border-left: 4px solid var(--mono-1);
-            padding: 0 15px;
-            color: var(--mono-2);
-        }
-
-        blockquote> :first-child {
-            margin-top: 0;
-        }
-
-        blockquote> :last-child {
-            margin-bottom: 0;
-        }
-
-
-        /* Tables */
-
-        table {
-            padding: 0;
-            border-collapse: collapse;
-        }
-
-        table tr {
-            border-top: 1px solid #cccccc;
-            margin: 0;
-            padding: 0;
-        }
-
-        table tr th {
-            font-weight: bold;
-            border: 1px solid #cccccc;
-            margin: 0;
-            padding: 6px 13px;
-        }
-
-        table tr td {
-            border: 1px solid #cccccc;
-            margin: 0;
-            padding: 6px 13px;
-        }
-
-        table tr th :first-child,
-        table tr td :first-child {
-            margin-top: 0;
-        }
-
-        table tr th :last-child,
-        table tr td :last-child {
-            margin-bottom: 0;
-        }
-
-        pre {
-            background: var(--code-bg);
-        }
-
-        code {
-            margin: 0 auto;
-            max-width: 800px;
-        }
-
-        code:not(.hljs) {
-            display: block;
-            margin: 0px 20px;
-            padding: 7px;
-        }
-
-        /* Collapible */
-
-        input[type='checkbox'] {
-            display: none;
-        }
-
-        .lbl-toggle {
-            display: block;
-            font-weight: bold;
-            font-family: monospace;
-            padding: 5px 15px;
-            margin: 0px;
-            color: var(--mono-1);
-            background: var(--code-bg);
-            cursor: pointer;
-            border-bottom: 1px solid var(--mono-3);
-            border-top: 1px solid var(--mono-3);
-            /* border-radius: 7px; */
-            transition: all 0.25s ease-out;
-        }
-
-        .lbl-toggle::before {
-            content: ' ';
-            display: inline-block;
-            border-top: 5px solid transparent;
-            border-bottom: 5px solid transparent;
-            border-left: 5px solid currentColor;
-            vertical-align: middle;
-            margin-right: .7rem;
-            transform: translateY(-2px);
-            transition: transform .2s ease-out;
-        }
-
-        .collapsible-content {
-            max-height: 0px;
-            overflow: hidden;
-            transition: max-height .25s ease-in-out;
-        }
-
-        .toggle:checked+.lbl-toggle+.collapsible-content {
-            max-height: none;
-        }
-
-        .toggle:checked+.lbl-toggle::before {
-            transform: rotate(90deg) translateX(-3px);
-        }
-
-        .toggle:checked+.lbl-toggle {
-            border-bottom-right-radius: 0;
-            border-bottom-left-radius: 0;
-        }
-
-        .block-wrapper {
-            margin: 15px 0px;
-        }
-
-        /* Max document width */
-
-        @media screen and (min-width: 914px) {
-            body {
-                width: 854px;
-                margin: 0 auto;
-            }
-        }
-
-        @media print {
-            table,
-            pre {
-                page-break-inside: avoid;
-            }
-            pre {
-                word-wrap: break-word;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="res/css/uikit.css" />
+    <script src="res/js/uikit.js"></script>
 </head>
 
 <body>
-    <h1>Loading document...</h1>
+    <div class="uk-container">
+        <div id="document">
+            <div class="uk-position-center">
+                <div class="" uk-spinner></div>
+            </div>
+        </div>
+    </div>
 </body>
 
 </html>

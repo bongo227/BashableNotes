@@ -74,14 +74,9 @@ impl Handler for Server {
                                 );
 
                                 if stdout != "" {
-                                    let output_name = match block.options.cmd {
-                                        Some(ref cmd) => format!("OUTPUT: {}", cmd),
-                                        None => String::from("OUTPUT"),
-                                    };
-
                                     let output_html = format!(
                                         "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}", 
-                                        md_renderer.collabsible_wrapper_begin(block.index, "out", &output_name), 
+                                        md_renderer.collabsible_wrapper_begin("Output", &block.options.cmd.clone().unwrap_or_default()), 
                                         stdout, 
                                         md_renderer.collabsible_wrapper_end());
 
@@ -93,14 +88,9 @@ impl Handler for Server {
                                 }
 
                                 if stderr != "" {
-                                    let error_name = match block.options.cmd {
-                                        Some(ref cmd) => format!("ERROR: {}", cmd),
-                                        None => String::from("ERROR"),
-                                    };
-                                    
                                     let output_html = format!(
                                         "{}<pre><code class=\"language-nohighlight hljs\">{}</code></pre>{}", 
-                                        md_renderer.collabsible_wrapper_begin(block.index, "out", &error_name),
+                                        md_renderer.collabsible_wrapper_begin("Error", &block.options.cmd.clone().unwrap_or_default()),
                                         stderr,
                                         md_renderer.collabsible_wrapper_end());
 

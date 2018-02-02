@@ -218,22 +218,19 @@ impl<'a> MarkdownRenderer<'a> {
         }
     }
 
-    pub fn collabsible_wrapper_begin(&self, index: usize, id: &str, box_name: &str) -> String {
-        format!(r#"
-            <div class="wrap-collabsible code-{1}">
-                <input id="collapsible-{0}-{1}" class="toggle" type="checkbox" checked>
-                <label for="collapsible-{0}-{1}" class="lbl-toggle">{2}</label>
-                <div class="collapsible-content">
-                    <div class="content-inner">"#,
-            index, id, box_name
+    pub fn collabsible_wrapper_begin(&self, title: &str, subtext: &str) -> String {
+        format!(r##"
+            <li class="uk-open">
+                <a class="uk-accordion-title" href="#"><span class="uk-text-bold">{}</span> <span class="uk-text-muted">{}</span></a>
+                <div class="uk-accordion-content">"##,
+            title, subtext
         )
     }
 
     pub fn collabsible_wrapper_end(&self) -> String {
         String::from(r#"
-                    </div>
                 </div>
-            </div>"#)
+            </li>"#)
     }
 
     pub fn parse_markdown(&mut self) -> String {
@@ -284,8 +281,8 @@ impl<'a> MarkdownRenderer<'a> {
             };
 
         for block in &self.blocks {
-            let block_wrapper_begin = format!(r#"<div class="block-wrapper" id="block-{}">"#, block.index);
-            let block_wrapper_end = String::from(r#"</div>"#);
+            let block_wrapper_begin = format!(r#"<ul uk-accordion="multiple: true" id="block-{}">"#, block.index);
+            let block_wrapper_end = String::from(r#"</ul>"#);
 
 
             // begin outer wrapper
@@ -297,14 +294,10 @@ impl<'a> MarkdownRenderer<'a> {
             );
 
             // wrap code
-            let input_name = match block.options.name {
-                Some(ref name) => format!("INPUT: {}", name),
-                None => String::from("INPUT"),
-            };
             insert_html(
                 block.start_index,
                 &mut insert_offset,
-                self.collabsible_wrapper_begin(block.index, "in", &input_name),
+                self.collabsible_wrapper_begin("Input", &block.options.name.clone().unwrap_or_default()),
                 &mut events,
             );
             insert_html(
