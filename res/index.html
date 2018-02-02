@@ -11,12 +11,22 @@
     <script src="res/js/highlight.pack.js"></script>
 
     <script>
+        let socket = null;
+
+        const goto = (path) => {
+            if (socket != null) {
+                socket.send("get " + path)
+            } else {
+                console.error("Socket not connected");
+            }
+        }
+
         window.onload = () => {
             setTimeout(() => {
-                let socket = new WebSocket("ws://127.0.0.1:3012");
+                socket = new WebSocket("ws://127.0.0.1:3012");
                 socket.onopen = () => {
                     console.log("WebSocket open");
-                    socket.send("get document");
+                    socket.send("init");
                 };
                 socket.onmessage = (msg) => {
                     console.log(`WebSocket received \"${msg.data.slice(0, 50)}...\"`);

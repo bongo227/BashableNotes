@@ -12,6 +12,7 @@ use serde_json::to_string;
 use std::ops::{Generator, GeneratorState};
 
 use std::thread;
+use std::path::Path;
 
 const PING: Token = Token(1);
 const EXPIRE: Token = Token(2);
@@ -49,19 +50,20 @@ impl Handler for Server {
     }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
-        let clone1 = self.out.clone();
-        let clone2 = self.out.clone();
-        let clone3 = self.out.clone();
-        let clone4 = self.out.clone();
+        let out = self.out.clone();
+        
+        let thread_send = move |msg: Message| {
+            let out = out.clone();
+            thread::spawn(move || {
+                out.send(msg).unwrap();
+            });
+        };
 
         thread::spawn(move || {
             println!("Server got message '{}'. ", msg);
 
             if let Ok(text) = msg.into_text() {
-                if text == "get document" {
-                    let msg = Message::text(String::from("rendering markdown..."));
-                    thread::spawn(move || clone1.send(msg).unwrap());
-
+                if text == "init" {
                     let mut md_renderer = MarkdownRenderer::new();
 
                     // send file tree
@@ -72,17 +74,31 @@ impl Handler for Server {
                     };
                     let json_str = to_string(&json_msg).unwrap();
                     let msg = Message::text(json_str);
-                    thread::spawn(move || clone2.send(msg).unwrap());
-                    
+                    thread_send(msg);
+
+                } else if text.starts_with("get ") {
+                    let path = &Path::new(&text[4..]);
+                    let mut md_renderer = MarkdownRenderer::new();
+
+                    // send file tree
+                    let html = md_renderer.build_file_tree();
+                    let json_msg = JsonMsg {
+                        id: String::from("file-tree"),
+                        data: html,
+                    };
+                    let json_str = to_string(&json_msg).unwrap();
+                    let msg = Message::text(json_str);
+                    thread_send(msg);
+
                     // send markdown
-                    let html = md_renderer.parse_markdown();
+                    let html = md_renderer.parse_markdown(path);
                     let json_msg = JsonMsg {
                         id: String::from("document"),
                         data: html,
                     };
                     let json_str = to_string(&json_msg).unwrap();
                     let msg = Message::text(json_str);
-                    thread::spawn(move || clone4.send(msg).unwrap());
+                    thread_send(msg);
 
                     let mut output_generator = || {
                         for block in &md_renderer.blocks {
@@ -137,8 +153,7 @@ impl Handler for Server {
 
                                 let json_str = to_string(&json_msg).unwrap();
                                 let msg = Message::text(json_str);
-                                let clone4 = clone3.clone();
-                                thread::spawn(move || clone4.send(msg).unwrap());
+                                thread_send(msg);
                             }
                             GeneratorState::Complete(_) => break,
                         }

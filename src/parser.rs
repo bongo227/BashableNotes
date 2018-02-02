@@ -221,7 +221,7 @@ impl MarkdownRenderer {
     pub fn collabsible_wrapper_begin(&self, title: &str, subtext: &str) -> String {
         format!(r##"
             <li class="uk-open">
-                <a class="uk-accordion-title" href="#"><span class="uk-text-bold">{}</span> <span class="uk-text-muted">{}</span></a>
+                <a class="uk-accordion-title uk-text-small" href="#"><span class="uk-text-bold">{}</span> <span class="uk-text-muted">{}</span></a>
                 <div class="uk-accordion-content">"##,
             title, subtext
         )
@@ -243,12 +243,13 @@ impl MarkdownRenderer {
             r#"<ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">"#;
             let inner_menu_end = "</ul>";
 
-            fn file_item(name: &str) -> String {
+            fn file_item(file: &str, name: &str) -> String {
                 format!(
                     r##"
                     <li>
-                        <a><span uk-icon="icon: file" class="uk-margin-small-right"></span>{}</a>
+                        <a href="#" onclick="goto('{}')"><span uk-icon="icon: file" class="uk-margin-small-right"></span>{}</a>
                     </li>"##,
+                    file,
                     name
                 )
             };
@@ -277,7 +278,9 @@ impl MarkdownRenderer {
                     menu_html.push_str(inner_menu_end);
                     menu_html.push_str(folder_item_end);
                 } else {
-                    menu_html.push_str(&file_item(file_name));
+                    let path = path.path();
+                    let full_path = path.to_str().unwrap();
+                    menu_html.push_str(&file_item(full_path, file_name));
                 }
 
                 // debug!("entry: {}", path.unwrap().path().display());
@@ -293,11 +296,12 @@ impl MarkdownRenderer {
         menu_html
     }
 
-    pub fn parse_markdown(&mut self) -> String {
+    pub fn parse_markdown(&mut self, path: &Path) -> String {
         info!("variable EXEC_CMD = {}", self.env_exec_cmd);
         
         // Read markdown file
-        let mut f = File::open(Path::new("res/test.md")).unwrap();
+        info!("Rendering: {}", path.display());
+        let mut f = File::open(path).unwrap();
         let mut contents = String::new();
         f.read_to_string(&mut contents).unwrap();
         info!("read markdown file");
@@ -327,6 +331,18 @@ impl MarkdownRenderer {
 
         // Setup docker enviroment
         if self.env_exec_cmd {
+            let docker_file = self.notebook_dir.path().join("Dockerfile");
+            debug!("docker file location: {}", docker_file.display());
+            if !docker_file.as_path().exists() {
+                info!("no Dockerfile, creating default");
+
+                let mut f = File::create(docker_file).unwrap();
+                f.write_all("FROM ubuntu:latest".as_bytes()).unwrap();
+                f.sync_all().unwrap();
+
+                info!("created docker file");
+            }
+
             self.build_docker_container();
             self.container_id = self.start_docker_container();
             assert_ne!(self.container_id, "")
