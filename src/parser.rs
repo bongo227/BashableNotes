@@ -12,9 +12,10 @@ use std::process::Command;
 use shiplift::{Docker, ExecContainerOptions};
 
 use std::env;
+use tempdir::TempDir;
 
-pub struct MarkdownRenderer<'a> {
-    notebook_path: &'a Path,
+pub struct MarkdownRenderer {
+    notebook_dir: TempDir,
     pub blocks: Vec<CodeBlock>,
     pub docker: Docker,
     pub container_id: String,
@@ -37,18 +38,16 @@ pub struct CodeBlock {
     pub index: usize,
 }
 
-impl<'a> MarkdownRenderer<'a> {
+impl MarkdownRenderer {
     pub fn new() -> Self {
         // TODO: move back to a temp folder
-        let notebook_path = Path::new("notebook/");
-
-        fs::create_dir_all(notebook_path).unwrap();
+        let notebook_dir = TempDir::new("notebook").unwrap();
         info!("created notebook directory");
 
         let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
 
         MarkdownRenderer {
-            notebook_path,
+            notebook_dir,
             blocks: Vec::new(),
             docker: Docker::new(),
             container_id: String::new(),
@@ -60,7 +59,7 @@ impl<'a> MarkdownRenderer<'a> {
         info!("building docker container");
 
         let output = Command::new("docker")
-            .current_dir(self.notebook_path)
+            .current_dir(self.notebook_dir.path())
             .arg("build")
             // .arg("--no-cache")
             .arg("--network=host") // share the network with host
@@ -89,12 +88,12 @@ impl<'a> MarkdownRenderer<'a> {
         // debug!("nbpath: {:?}", );
 
         let output = Command::new("docker")
-        .current_dir(self.notebook_path)
+        .current_dir(self.notebook_dir.path())
         .arg("run")
         .arg("-i") // keep container alive even though we are not attached
         .arg("-d") // run in the background
         .arg("-v") // link notebook folder
-        .arg(format!("{}:/home", self.notebook_path.canonicalize().unwrap().to_str().unwrap()))
+        .arg(format!("{}:/home", self.notebook_dir.path().canonicalize().unwrap().to_str().unwrap()))
         .arg("--net=host") // share the network with host
         .arg("notebook-container")
         .output()
@@ -228,9 +227,11 @@ impl<'a> MarkdownRenderer<'a> {
     }
 
     pub fn collabsible_wrapper_end(&self) -> String {
-        String::from(r#"
+        String::from(
+            r#"
                 </div>
-            </li>"#)
+            </li>"#,
+        )
     }
 
     pub fn parse_markdown(&mut self) -> String {
@@ -255,7 +256,7 @@ impl<'a> MarkdownRenderer<'a> {
         if self.env_exec_cmd {
             for block in &self.blocks {
                 if let Some(ref file_name) = block.options.name {
-                    let path = self.notebook_path.join(file_name);
+                    let path = self.notebook_dir.path().join(file_name);
                     let mut f = File::create(path).unwrap();
                     f.write_all(block.code.as_bytes()).unwrap();
                     f.sync_all().unwrap();
@@ -281,9 +282,11 @@ impl<'a> MarkdownRenderer<'a> {
             };
 
         for block in &self.blocks {
-            let block_wrapper_begin = format!(r#"<ul uk-accordion="multiple: true" id="block-{}">"#, block.index);
+            let block_wrapper_begin = format!(
+                r#"<ul uk-accordion="multiple: true" id="block-{}">"#,
+                block.index
+            );
             let block_wrapper_end = String::from(r#"</ul>"#);
-
 
             // begin outer wrapper
             insert_html(
@@ -297,7 +300,10 @@ impl<'a> MarkdownRenderer<'a> {
             insert_html(
                 block.start_index,
                 &mut insert_offset,
-                self.collabsible_wrapper_begin("Input", &block.options.name.clone().unwrap_or_default()),
+                self.collabsible_wrapper_begin(
+                    "Input",
+                    &block.options.name.clone().unwrap_or_default(),
+                ),
                 &mut events,
             );
             insert_html(

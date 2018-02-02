@@ -1,26 +1,23 @@
 #![feature(generators, generator_trait)]
 #![feature(conservative_impl_trait)]
 
+extern crate env_logger;
 extern crate iron;
+#[macro_use]
+extern crate log;
 extern crate mount;
 extern crate pulldown_cmark;
+extern crate regex;
 extern crate router;
-extern crate staticfile;
-extern crate time;
-
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 extern crate serde_json;
-
 extern crate shiplift;
-
-extern crate env_logger;
-#[macro_use]
-extern crate log;
-
+extern crate staticfile;
+extern crate tempdir;
+extern crate time;
 extern crate ws;
-extern crate regex;
 
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};
@@ -38,7 +35,7 @@ mod parser;
 
 mod websocket;
 use websocket::Server;
-use ws::{listen};
+use ws::listen;
 use std::thread;
 
 struct ResponseTime;
@@ -80,21 +77,19 @@ fn main() {
 
     let ws_handle = thread::spawn(|| {
         info!("websocket thread created");
-        
+
         let ws_address = "127.0.0.1:3012";
         info!("Starting websocket on ws://{}", ws_address);
-        listen(ws_address, |out| {
-            Server {
-                out: out,
-                ping_timeout: None,
-                expire_timeout: None,
-            }
+        listen(ws_address, |out| Server {
+            out: out,
+            ping_timeout: None,
+            expire_timeout: None,
         }).unwrap();
     });
 
     let http_handle = thread::spawn(|| {
         info!("webserver thread created");
-        
+
         let mut chain = Chain::new(hello_world);
         chain.link_before(ResponseTime);
         chain.link_after(ResponseTime);
