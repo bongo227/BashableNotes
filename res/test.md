@@ -2,14 +2,15 @@
 
 Bashable notes allows you to run arbitary commands (inside a customizable docker container) on blocks of code and display their output. Think jupyter notebooks but simpler and more flexable.
 
+Note, this project is still in _very_ early development.
+
 ## Code block options
 Code block options are written in json after specifying a language
-```markdown
-\`\`\`python {/* Insert options here */}
-print("Hello world!")
-\`\`\`
-``` 
-
+    
+    ```python {/* Insert options here */}
+    print("Hello world!")
+    ```
+    
 The options avalible are:
 
 - `name`: if a file name is provided, the file is saved inside the docker container
@@ -22,7 +23,7 @@ The options avalible are:
 
 By default all commands are run inside the `ubuntu:latest` docker container, if you need additional dependencies just create a new docker file (with `{"name":"Dockerfile"}`).
 
-```Dockerfile {"name":"Dockerfile"}
+```dockerfile {"name":"Dockerfile"}
 FROM ubuntu:latest
 RUN apt-get update
 RUN apt-get install -y python python-pip python-tk
@@ -58,3 +59,15 @@ plt.savefig("graph.svg")
 ```
 
 ![graph](notebook/graph.svg)
+
+## Upcoming features
+
+- File system to view markdown files in folder/subfolders.
+- Stream code output instead of waiting execution to terminate
+- Parse enviroment variables in via code block options
+- HTML form controls set enviroment variables (enabling _interactive_ notebooks)
+- Togglable dark theme
+- Document overview
+- Spinners on queued/executing code
+- Ability to stop/pause/resume code execution
+- Export options (i.e. markdown (with output), pdf, latex etc)
