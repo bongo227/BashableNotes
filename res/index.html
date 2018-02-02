@@ -26,7 +26,8 @@
                         if (msg_json.id === "document") {
                             document.getElementById("document").innerHTML = msg_json.data;
                         } else if (msg_json.id === "file-tree") {
-                            document.getElementById("file-tree").outerHTML = msg_json.data;
+                            document.getElementById("file-tree").innerHTML =
+                                `<ul class="uk-nav-default uk-nav-parent-icon uk-width-medium" uk-nav="multiple: true">${msg_json.data}</ul>`;
                         } else {
                             document.getElementById("block-" + msg_json.id).innerHTML += msg_json.data;
                         }
@@ -73,8 +74,8 @@
             position: fixed;
             margin-top: 10px;
         }
-        
-        .file-tree > ul {
+
+        .file-tree>ul {
             max-height: 100vh;
             overflow-y: auto;
         }
@@ -83,10 +84,7 @@
 
 <body>
     <div class="uk-container">
-        <div class="uk-width-1-2@s uk-width-2-5@m file-tree">
-            <ul class="uk-nav-default uk-nav-parent-icon uk-width-medium" uk-nav="multiple: true">
-                <div id="file-tree"></div>
-            </ul>
+        <div class="uk-width-1-2@s uk-width-2-5@m file-tree" id="file-tree">
         </div>
         <div id="document" style="margin-left: 350px; position: relative;">
             <div class="uk-position-center" style="margin-top: 100px">
