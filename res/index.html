@@ -44,18 +44,66 @@
 
     <link rel="stylesheet" href="res/css/uikit.css" />
     <script src="res/js/uikit.js"></script>
+    <script src="res/js/uikit-icons.js"></script>
 
     <style>
         pre {
             padding: 0px !important;
+        }
+
+        .file-tree .uk-nav > li > a {
+            padding: 0px;
+        }
+
+        .file-tree .uk-nav-sub a {
+            padding: 0px;
+        }
+
+        .file-tree ul.uk-nav-sub {
+            padding: 0px 0px 0px 15px;
+        }
+
+        .file-tree a {
+            padding: 2px 0px !important;
+        }
+
+        .file-tree {
+            position: fixed; 
+            height: 0;
+            margin-top: 10px;
+        }
+
+        .uk-container {
+            margin-top: 65px;
         }
     </style>
 </head>
 
 <body>
     <div class="uk-container">
-        <div id="document">
-            <div class="uk-position-center">
+        <div class="uk-width-1-2@s uk-width-2-5@m file-tree">
+                <ul class="uk-nav-default uk-nav-parent-icon uk-width-medium" uk-nav="multiple: true">
+                    <li class="uk-parent">
+                        <a href="#"><span uk-icon="icon: folder" class="uk-margin-small-right"></span>Foo</a>
+                        <ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">
+                            <li class="uk-parent">
+                                <a><span uk-icon="icon: folder" class="uk-margin-small-right"></span>Foo</a>
+                                <ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">
+                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Foo</a></li>
+                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
+                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
+                                </ul>
+                            </li>
+                            <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
+                            <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
+                        </ul>
+                    </li>
+                    <li class=""><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
+                    <li class=""><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
+                </ul>
+            </div>
+        <div id="document" style="margin-left: 350px; position: relative;">
+            <div class="uk-position-center" style="margin-top: 100px">
                 <div class="" uk-spinner></div>
             </div>
         </div>
