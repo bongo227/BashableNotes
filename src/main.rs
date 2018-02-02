@@ -18,6 +18,7 @@ extern crate staticfile;
 extern crate tempdir;
 extern crate time;
 extern crate ws;
+extern crate walkdir;
 
 use iron::prelude::*;
 use iron::{typemap, AfterMiddleware, BeforeMiddleware};

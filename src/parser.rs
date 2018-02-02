@@ -4,15 +4,16 @@ use std::path::Path;
 use pulldown_cmark::{html, Event, Options, Parser, Tag};
 use std::borrow::Cow;
 use serde_json;
-
 use std::io::Write;
 use std::fs;
 use std::process::Command;
-
 use shiplift::{Docker, ExecContainerOptions};
-
 use std::env;
 use tempdir::TempDir;
+use walkdir::WalkDir;
+use std::borrow::Borrow;
+use std::path::PathBuf;
+use std::ffi::OsString;
 
 pub struct MarkdownRenderer {
     notebook_dir: TempDir,
@@ -234,9 +235,67 @@ impl MarkdownRenderer {
         )
     }
 
+    pub fn build_file_tree(&self) -> String {
+        fn recurse_directorys(current_dir: PathBuf) -> String {
+            let mut menu_html = String::new();
+
+            let inner_menu_begin =
+            r#"<ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">"#;
+            let inner_menu_end = "</ul>";
+
+            fn file_item(name: &str) -> String {
+                format!(
+                    r##"
+                    <li>
+                        <a><span uk-icon="icon: file" class="uk-margin-small-right"></span>{}</a>
+                    </li>"##,
+                    name
+                )
+            };
+
+            fn folder_item_begin(name: &str) -> String {
+                format!(
+                    r##"
+                <li class="uk-parent">
+                    <a href="#">
+                        <span uk-icon="icon: folder" class="uk-margin-small-right"></span>{}</a>
+                "##,
+                    name
+                )
+            };
+
+            let folder_item_end = "</li>";
+
+            for path in fs::read_dir(current_dir).unwrap() {
+                let path = path.unwrap();
+                let file_name: OsString = path.file_name();
+                let file_name = file_name.to_str().unwrap();
+                if path.path().is_dir() {
+                    menu_html.push_str(&folder_item_begin(file_name));
+                    menu_html.push_str(inner_menu_begin);
+                    menu_html.push_str(&recurse_directorys(path.path()));
+                    menu_html.push_str(inner_menu_end);
+                    menu_html.push_str(folder_item_end);
+                } else {
+                    menu_html.push_str(&file_item(file_name));
+                }
+
+                // debug!("entry: {}", path.unwrap().path().display());
+            }
+
+            menu_html
+        }
+        info!("building file tree");
+        let current_dir = env::current_dir().unwrap();
+        let menu_html = recurse_directorys(current_dir);
+        info!("file tree build");
+
+        menu_html
+    }
+
     pub fn parse_markdown(&mut self) -> String {
         info!("variable EXEC_CMD = {}", self.env_exec_cmd);
-
+        
         // Read markdown file
         let mut f = File::open(Path::new("res/test.md")).unwrap();
         let mut contents = String::new();

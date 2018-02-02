@@ -52,6 +52,7 @@ impl Handler for Server {
         let clone1 = self.out.clone();
         let clone2 = self.out.clone();
         let clone3 = self.out.clone();
+        let clone4 = self.out.clone();
 
         thread::spawn(move || {
             println!("Server got message '{}'. ", msg);
@@ -62,7 +63,26 @@ impl Handler for Server {
                     thread::spawn(move || clone1.send(msg).unwrap());
 
                     let mut md_renderer = MarkdownRenderer::new();
+
+                    // send file tree
+                    let html = md_renderer.build_file_tree();
+                    let json_msg = JsonMsg {
+                        id: String::from("file-tree"),
+                        data: html,
+                    };
+                    let json_str = to_string(&json_msg).unwrap();
+                    let msg = Message::text(json_str);
+                    thread::spawn(move || clone2.send(msg).unwrap());
+                    
+                    // send markdown
                     let html = md_renderer.parse_markdown();
+                    let json_msg = JsonMsg {
+                        id: String::from("document"),
+                        data: html,
+                    };
+                    let json_str = to_string(&json_msg).unwrap();
+                    let msg = Message::text(json_str);
+                    thread::spawn(move || clone4.send(msg).unwrap());
 
                     let mut output_generator = || {
                         for block in &md_renderer.blocks {
@@ -106,15 +126,7 @@ impl Handler for Server {
                         return ();
                     };
 
-                    let json_msg = JsonMsg {
-                        id: String::from("document"),
-                        data: html,
-                    };
-
-                    let json_str = to_string(&json_msg).unwrap();
-                    let msg = Message::text(json_str);
-                    thread::spawn(move || clone2.send(msg).unwrap());
-
+                    // send command outputs
                     loop {
                         match output_generator.resume() {
                             GeneratorState::Yielded(output) => {

@@ -25,6 +25,8 @@
                         console.log(`populating id: ${msg_json.id}`);
                         if (msg_json.id === "document") {
                             document.getElementById("document").innerHTML = msg_json.data;
+                        } else if (msg_json.id === "file-tree") {
+                            document.getElementById("file-tree").outerHTML = msg_json.data;
                         } else {
                             document.getElementById("block-" + msg_json.id).innerHTML += msg_json.data;
                         }
@@ -51,7 +53,7 @@
             padding: 0px !important;
         }
 
-        .file-tree .uk-nav > li > a {
+        .file-tree .uk-nav>li>a {
             padding: 0px;
         }
 
@@ -68,13 +70,13 @@
         }
 
         .file-tree {
-            position: fixed; 
-            height: 0;
+            position: fixed;
             margin-top: 10px;
         }
-
-        .uk-container {
-            margin-top: 65px;
+        
+        .file-tree > ul {
+            max-height: 100vh;
+            overflow-y: auto;
         }
     </style>
 </head>
@@ -82,26 +84,10 @@
 <body>
     <div class="uk-container">
         <div class="uk-width-1-2@s uk-width-2-5@m file-tree">
-                <ul class="uk-nav-default uk-nav-parent-icon uk-width-medium" uk-nav="multiple: true">
-                    <li class="uk-parent">
-                        <a href="#"><span uk-icon="icon: folder" class="uk-margin-small-right"></span>Foo</a>
-                        <ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">
-                            <li class="uk-parent">
-                                <a><span uk-icon="icon: folder" class="uk-margin-small-right"></span>Foo</a>
-                                <ul class="uk-nav-sub uk-nav-parent-icon" uk-nav="multiple: true">
-                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Foo</a></li>
-                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
-                                    <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
-                                </ul>
-                            </li>
-                            <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
-                            <li><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
-                        </ul>
-                    </li>
-                    <li class=""><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Bar</a></li>
-                    <li class=""><a><span uk-icon="icon: file" class="uk-margin-small-right"></span>Baz</a></li>
-                </ul>
-            </div>
+            <ul class="uk-nav-default uk-nav-parent-icon uk-width-medium" uk-nav="multiple: true">
+                <div id="file-tree"></div>
+            </ul>
+        </div>
         <div id="document" style="margin-left: 350px; position: relative;">
             <div class="uk-position-center" style="margin-top: 100px">
                 <div class="" uk-spinner></div>
