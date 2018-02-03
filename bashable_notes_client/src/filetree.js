@@ -23,20 +23,45 @@ const Folder = ({name, children}) => (
 	</li>
 );
 
-export const FileTree = ({tree}) => {
-	let recurse_tree = (tree) => {
-		return tree.map((item, index) => {
-			if ('path' in item) {
-				return <File key={item.name+index} name={item.name} path={item.path} />;
-			} else {
-				return <Folder key={item.name+index} name={item.name}>{recurse_tree(item.subtree)}</Folder>;
-			}
-		});
-	};
+export class FileTree extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = {tree: []};
+        
+        this.props.socket.addEventListener("message", (msg) => this.new_message(msg));
+    }
+    
+    new_message(msg) {
+        try {
+            let json_msg = JSON.parse(msg.data)
+            if ("FileTree" in json_msg) {
+                console.log("New FileTree message");
+                this.setState({
+                    tree: json_msg.FileTree.root
+                });
+            }
+        } catch (e) {
 
-	return <div className="uk-width-1-2@s uk-width-2-5@m file-tree">
-		<ul className="uk-nav-default uk-nav-parent-icon uk-width-medium uk-nav" uk-nav="multiple: true">
-			{recurse_tree(tree)}
-		</ul>
-	</div>;
-};
+        }
+    }
+    
+    render() {
+        console.log("render");
+        console.dir(this.state);
+        let recurse_tree = (tree) => {
+            return tree.map((item, index) => {
+                if ('File' in item) {
+                    return <File key={item.File.name+index} name={item.File.name} path={item.File.path} />;
+                } else {
+                    return <Folder key={item.Folder.name+index} name={item.Folder.name}>{recurse_tree(item.Folder.subtree)}</Folder>;
+                }
+            });
+        };
+
+        return <div className="uk-width-1-2@s uk-width-2-5@m file-tree">
+            <ul className="uk-nav-default uk-nav-parent-icon uk-width-medium uk-nav" uk-nav="multiple: true">
+                {recurse_tree(this.state.tree)}
+            </ul>
+        </div>;
+    }
+}

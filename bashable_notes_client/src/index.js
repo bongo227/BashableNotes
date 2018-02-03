@@ -5,34 +5,29 @@ import { FileTree } from './filetree';
 import { Container, Spinner } from './uikit';
 import "./style.css";
 
-const Document = ({markdown}) => {
+const Document = ({markdown, socket}) => {
 	return <div style={{marginLeft: 350}} dangerouslySetInnerHTML={{__html: markdown}}></div>
 }
 
-const App = () => {
-	let tree = [{
-		name: "folder1",
-		subtree: [
-			{
-				name: "file1",
-				path: "/a/b/c"
-			}, 
-			{
-				name: "file2",
-				path: "/a/b/c"
-			}
-		],
-	},
-	{
-		name: "file3",
-		path: "/a/b/c"	
-	}];
+class App extends React.Component {
+	constructor(props) {
+		super(props);
+		this.state = {
+			socket: new WebSocket("ws://127.0.0.1:3012")
+		};
 		
-	return <Container>
-		<FileTree tree={tree}/>
-		<Document markdown="<h1>Hello react!</h1>"/>
-	</Container>
-};
+		this.state.socket.addEventListener("open", () => {
+			this.state.socket.send("\"GetTree\"");
+		});
+	}
+	
+	render() {
+		return <Container>
+			<FileTree socket={this.state.socket}/>
+			<Document markdown="<h1>Hello react!</h1>" socket={this.state.socket}/>
+		</Container>
+	}
+}
 
 let mount_node = document.getElementById("app");
 ReactDOM.render(<App />, mount_node);
