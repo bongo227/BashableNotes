@@ -76,7 +76,7 @@ export class FileTree extends React.Component {
         };
 
         return <div className="uk-width-1-2@s uk-width-2-5@m file-tree">
-            <ul className="uk-nav-default uk-nav-parent-icon uk-width-medium uk-nav" uk-nav="multiple: true">
+            <ul className="uk-nav-default uk-nav-parent-icon uk-nav" uk-nav="multiple: true" style={{width: 170}}>
                 {recurse_tree(this.state.tree)}
             </ul>
         </div>;

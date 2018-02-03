@@ -23,8 +23,7 @@ enum AppMessage {
     OpenFile { path: String },
     GetTree,
     Markdown { path: String, markdown: String },
-    Stdout { id: usize, payload: String },
-    Stderr { id: usize, payload: String },
+    Output { id: String, stdout: String, stderr: String },
     Error { error: String },
     FileTree { root: Vec<FileTree> }
 }
@@ -33,8 +32,8 @@ impl Handler for Server {
     fn on_open(&mut self, _: Handshake) -> Result<()> {
         // schedule a timeout to send a ping every 5 seconds
         try!(self.out.timeout(5_000, PING));
-        // schedule a timeout to close the connection if there is no activity for 30 seconds
-        self.out.timeout(30_000, EXPIRE)
+        // schedule a timeout to close the connection if there is no activity for 15 minuets
+        self.out.timeout(90_0000, EXPIRE)
     }
 
     fn on_message(&mut self, msg: Message) -> Result<()> {
@@ -45,12 +44,11 @@ impl Handler for Server {
             thread::spawn(move || {
                 let text = serde_json::to_string(&app_msg).unwrap();
                 out.send(Message::Text(text)).unwrap();
+                debug!("message sent");
             });
         };
 
         debug!("message from client: {}", msg);
-        thread_send(AppMessage::GetTree);
-        // return Ok(());
 
         let msg_text = match &msg.into_text() {
             &Ok(ref text) => text.clone(),
@@ -63,11 +61,22 @@ impl Handler for Server {
         match serde_json::from_str(&msg_text) {
             Ok(msg) => match msg {
                 AppMessage::OpenFile { path } => {
-                    let renderer = Renderer::new();
+                    let mut renderer = Renderer::new();
                     thread_send(AppMessage::Markdown{
                         path: path.clone(), 
                         markdown: renderer.render(Path::new(&path))
-                    })
+                    });
+
+                    thread::spawn(move || {
+                        loop {
+                            let exec_result = renderer.execute();
+                            match exec_result {
+                                Some((id, (stdout, stderr))) => thread_send(AppMessage::Output{id, stdout, stderr}),
+                                None => break,
+                            }
+                        }
+                    });
+
                 },
                 AppMessage::GetTree => {
                     let renderer = Renderer::new();

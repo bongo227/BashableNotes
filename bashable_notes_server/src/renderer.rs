@@ -11,21 +11,26 @@ use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use serde_json;
+use std::thread;
+use std::process::Command;
 
 pub struct Renderer {
     notebook_dir: TempDir,
     env_exec_cmd: bool,
+    container: Option<docker::Container>,
+    blocks: Vec<CodeBlock>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CodeBlockOptions {
     hide: Option<bool>,
     name: Option<String>,
-    pub cmd: Option<String>,
+    cmd: Option<String>,
 }
 
 #[derive(Clone)]
 pub struct CodeBlock {
+    id: String,
     options: CodeBlockOptions,
     start_index: usize,
     end_index: usize,
@@ -39,7 +44,7 @@ pub enum FileTree {
 }
 
 impl CodeBlock {
-    fn new(settings: &str) -> Self {
+    fn new(index: usize, settings: &str) -> Self {
         let mut iter = settings.split_whitespace();
         let language = match iter.next() {
             Some(lang) => lang.to_owned(),
@@ -55,8 +60,9 @@ impl CodeBlock {
         };
 
         CodeBlock {
+            id: format!("block-{}", index),
             options: options,
-            start_index: 0,
+            start_index: index,
             end_index: 0,
             code: String::new(),
         }
@@ -84,6 +90,8 @@ impl Renderer {
         info!("enviroment variable EXEC_CMD = {}", env_exec_cmd);
 
         Renderer {
+            blocks: Vec::new(),
+            container: None,
             notebook_dir,
             env_exec_cmd,
         }
@@ -102,8 +110,7 @@ impl Renderer {
             .map(|(index, event)| {
                 match event {
                     Event::Start(Tag::CodeBlock(ref settings)) => {
-                        let mut block = CodeBlock::new(&settings.clone());
-                        block.set_start(index);
+                        let mut block = CodeBlock::new(index, &settings.clone());
                         blocks.push(block);
                         in_block = true;
                     }
@@ -183,7 +190,7 @@ impl Renderer {
         file_tree
     }
 
-    pub fn render(&self, markdown_path: &Path) -> String {
+    pub fn render(&mut self, markdown_path: &Path) -> String {
         info!("rendering started");
 
         // read markdown
@@ -196,6 +203,7 @@ impl Renderer {
         // parse markdown
         info!("parsing markdown");
         let (blocks, mut events) = self.parse(&contents);
+        self.blocks = blocks.clone();
         info!("markdown parsed");
 
         // save files
@@ -210,33 +218,6 @@ impl Renderer {
             }
         }
 
-        // create docker container
-        let docker_file = self.notebook_dir.path().join("Dockerfile");
-        if !docker_file.as_path().exists() {
-            info!("no Dockerfile, creating default Dockerfile");
-
-            let mut f = File::create(&docker_file).unwrap();
-            f.write_all("FROM ubuntu:latest".as_bytes()).unwrap();
-            f.sync_all().unwrap();
-
-            info!("created default Dockerfile");
-        }
-
-        info!("building docker image");
-        let image = match docker::Image::build("notebook-image", &docker_file) {
-            Ok(image) => image,
-            Err(err) => {
-                error!("error building docker image: {}", err);
-                return self.internal_error();
-            },
-        };
-        
-        info!("docker image built");
-
-        info!("starting docker container");
-        let container = docker::Container::start(image, self.notebook_dir.path());
-        info!("docker container started");
-
         // wrap code blocks
         let mut insert_offset = 0;
 
@@ -248,8 +229,8 @@ impl Renderer {
         info!("wrapping code blocks");
         for (index, block) in blocks.into_iter().enumerate() {
             let block_wrapper_begin = format!(
-                r#"<ul uk-accordion="multiple: true" id="block-{}">"#,
-                index
+                r#"<ul uk-accordion="multiple: true" id="{}">"#,
+                block.id
             );
             let block_wrapper_end = String::from(r#"</ul>"#);
 
@@ -291,5 +272,61 @@ impl Renderer {
         info!("html rendered");
 
         html_buf
+    }
+
+    pub fn execute(&mut self) -> Option<(String, (String, String))> {
+        if self.container.is_none() {
+            // create docker container
+            let docker_file = self.notebook_dir.path().join("Dockerfile");
+            if !docker_file.as_path().exists() {
+                info!("no Dockerfile, creating default Dockerfile");
+
+                let mut f = File::create(&docker_file).unwrap();
+                f.write_all("FROM ubuntu:latest".as_bytes()).unwrap();
+                f.sync_all().unwrap();
+
+                info!("created default Dockerfile");
+            }
+
+            info!("building docker image");
+            let image = match docker::Image::build("notebook-image", &docker_file) {
+                Ok(image) => image,
+                Err(err) => {
+                    error!("error building docker image: {}", err);
+                    let ie = self.internal_error();
+                    return Some((ie.clone(), (ie.clone(), ie.clone())));
+                },
+            };
+            info!("docker image built");        
+
+            info!("starting docker container");
+            let container = docker::Container::start(image, self.notebook_dir.path());
+            self.container = container.ok();
+            let container = self.container.clone().unwrap();
+            info!("docker container {} started", container.id());
+            // thread::sleep_ms(5000);
+        }
+
+        if self.container.is_none() {
+            return None;
+        } else {
+            let container = self.container.clone().unwrap();
+            let block = self.blocks.pop();
+            match block {
+                Some(block) => {
+                    let result = match block.options.cmd {
+                        Some(ref cmd) => {
+                            info!("executing command: {}", cmd);
+                            container.exec(&cmd)
+                        },
+                        None => return None,
+                    };
+                    
+                    Some((block.id, result.unwrap()))
+                },
+                None => None,
+            }
+        }
+
     }
 }

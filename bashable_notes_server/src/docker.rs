@@ -2,6 +2,7 @@ use std::process::Command;
 use std::path::Path;
 use std::io;
 
+#[derive(Clone)]
 pub struct Image {
     name: String,
 }
@@ -33,6 +34,7 @@ impl Image {
     }
 }
 
+#[derive(Clone)]
 pub struct Container {
     id: String,
     image: Image,
@@ -40,26 +42,37 @@ pub struct Container {
 
 impl Container {
     pub fn start(image: Image, home_path: &Path) -> io::Result<Self> {
-        let output = Command::new("docker")
+        let mut command = Command::new("docker");
+        let command = command
             .arg("run")
             .arg("-i") // keep container alive even though we are not attached
             .arg("-d") // run in the background
             .arg("-v") // link notebook folder
             .arg(format!("{}:/home", home_path.canonicalize()?.to_str().unwrap()))
             .arg("--net=host") // share the network with host
-            .arg(&image.name)
-            .output()?;
+            .arg(&image.name);
+
+        debug!("docker exec command: {:?}", command);
+        let output = command.output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
+        
+        debug!("stdout: {}", stdout);
+        debug!("stderr: {}", stderr);
+        
         if stderr != "" {
             panic!("Failed to start container: {}", stderr);
         }
 
         Ok(Container {
-            id: stdout.to_string(),
+            id: stdout.trim().to_string(),
             image,
         })
+    }
+
+    pub fn id(&self) -> String {
+        self.id.clone()
     }
 
     fn kill(&self) -> io::Result<()> {
@@ -76,16 +89,24 @@ impl Container {
         Ok(())
     }
 
-    fn exec(&self, cmd: &str) -> io::Result<(String, String)> {
-        let output = Command::new("docker")
+    pub fn exec(&self, cmd: &str) -> io::Result<(String, String)> {
+        let mut command = Command::new("docker");
+        let command = command
             .arg("exec")
             .arg(&self.id)
-            .arg(cmd)
-            .output()?;
+            .arg("bash")
+            .arg("-c")
+            .arg(&format!("cd home && {}", cmd));;
+            // .output()?;
+
+        debug!("docker exec command: {:?}", command);
+        let output = command.output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         
+        debug!("docker exec output: {} {}", stdout, stderr);
+
         Ok((stdout.to_string(), stderr.to_string()))
     }
 }
