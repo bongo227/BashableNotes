@@ -3,8 +3,16 @@ extern crate env_logger;
 extern crate log;
 extern crate ws;
 extern crate time;
+extern crate pulldown_cmark;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+extern crate tempdir;
 
 mod server;
+mod renderer;
+mod docker;
 
 use std::thread;
 

@@ -1,12 +1,14 @@
 use std::str::from_utf8;
 // use std::ops::{Generator, GeneratorState};
 use std::thread;
-// use std::path::Path;
-
+use std::path::Path;
 use ws::{CloseCode, Error, ErrorKind, Frame, Handler, Handshake, Message, OpCode, Result, Sender};
 use ws::util::{Timeout, Token};
 use time;
+use serde_json;
 // use serde_json::to_string;
+
+use renderer::Renderer;
 
 const PING: Token = Token(1);
 const EXPIRE: Token = Token(2);
@@ -15,6 +17,15 @@ pub struct Server {
     pub out: Sender,
     pub ping_timeout: Option<Timeout>,
     pub expire_timeout: Option<Timeout>,
+}
+
+#[derive(Serialize, Deserialize)]
+enum AppMessage {
+    OpenFile { path: String },
+    Markdown { path: String, markdown: String },
+    Stdout { id: usize, payload: String },
+    Stderr { id: usize, payload: String },
+    Error { error: String },
 }
 
 impl Handler for Server {
@@ -28,14 +39,41 @@ impl Handler for Server {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let out = self.out.clone();
         
-        let thread_send = move |msg: Message| {
+        let thread_send = move |app_msg: AppMessage| {
             let out = out.clone();
             thread::spawn(move || {
-                out.send(msg).unwrap();
+                let text = serde_json::to_string(&app_msg).unwrap();
+                out.send(Message::Text(text)).unwrap();
             });
         };
 
         debug!("message from client: {}", msg);
+        // thread_send(AppMessage::OpenFile{path: String::from("/some/path/file.md")});
+        // return Ok(());
+
+        let msg_text = match &msg.into_text() {
+            &Ok(ref text) => text.clone(),
+            &Err(ref err) => {
+                warn!("unable to course message into text: {}", err);
+                return Ok(())
+            }
+        };
+
+        match serde_json::from_str(&msg_text) {
+            Ok(msg) => match msg {
+                AppMessage::OpenFile { path } => {
+                    let renderer = Renderer::new(Path::new(&path));
+                    if let Err(err) = renderer {
+                        warn!("error constructing renderer: {}", err);
+                    } else {
+                        thread_send(AppMessage::Markdown{path, markdown: renderer.unwrap().render()})
+                    }
+                },
+                _ => warn!("unexpected message")
+            },
+            Err(err) => warn!("unable to parse message: {}", err),
+        }
+        
 
         self.out.send(Message::text("Hi, I am the server!"))
     }
