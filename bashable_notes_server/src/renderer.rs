@@ -4,13 +4,15 @@ use std::path::Path;
 use tempdir::TempDir;
 use std::borrow::Cow;
 use std::fs::File;
+use std::fs;
 use std::io;
 use std::io::{Read, Write};
 use std::env;
+use std::ffi::OsString;
+use std::path::PathBuf;
 use serde_json;
 
 pub struct Renderer {
-    markdown: String,
     notebook_dir: TempDir,
     env_exec_cmd: bool,
 }
@@ -28,6 +30,12 @@ pub struct CodeBlock {
     start_index: usize,
     end_index: usize,
     code: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum FileTree {
+    File { name: String, path: String },
+    Folder { name: String, subtree: Vec<FileTree> },
 }
 
 impl CodeBlock {
@@ -68,32 +76,25 @@ impl CodeBlock {
 }
 
 impl Renderer {
-    pub fn new(file: &Path) -> io::Result<Self> {
+    pub fn new() -> Self {
         let notebook_dir = TempDir::new("notebook").unwrap();
         info!("created notebook directory");
 
         let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
         info!("enviroment variable EXEC_CMD = {}", env_exec_cmd);
 
-        info!("reading markdown file");
-        let mut f = File::open(file)?;
-        let mut contents = String::new();
-        f.read_to_string(&mut contents)?;
-        info!("markdown file read");
-
-        Ok(Renderer {
-            markdown: contents,
+        Renderer {
             notebook_dir,
             env_exec_cmd,
-        })
+        }
     }
 
-    fn parse(&self) -> (Vec<CodeBlock>, Vec<Event>) {
+    fn parse<'a>(&self, markdown: &'a str) -> (Vec<CodeBlock>, Vec<Event<'a>>) {
         let mut blocks: Vec<CodeBlock> = Vec::new();
         let mut in_block = false;
 
         let options = Options::all();
-        let parser = Parser::new_ext(&self.markdown, options);
+        let parser = Parser::new_ext(markdown, options);
 
         let events: Vec<Event> = parser
             .into_iter()
@@ -154,12 +155,47 @@ impl Renderer {
         return String::from("Internal server error");
     }
 
-    pub fn render(&self) -> String {
+    pub fn render_file_tree(&self) -> Vec<FileTree> {
+        fn recurse_directorys(current_dir: PathBuf) -> Vec<FileTree> {
+            let mut tree = Vec::new();
+            
+            for path in fs::read_dir(current_dir).unwrap() {
+                let path = path.unwrap();
+                let file_name: OsString = path.file_name();
+                let file_name = file_name.to_str().unwrap();
+                if path.path().is_dir() {
+                    tree.push(FileTree::Folder{name:file_name.to_string(), subtree:recurse_directorys(path.path())});
+                } else {
+                    let path = path.path();
+                    let full_path = path.to_str().unwrap();
+                    tree.push(FileTree::File{name:file_name.to_string(), path: full_path.to_string()})
+                }
+            }
+
+            tree
+        }
+
+        info!("building file tree");
+        let current_dir = env::current_dir().unwrap();
+        let file_tree = recurse_directorys(current_dir);
+        info!("file tree build");
+
+        file_tree
+    }
+
+    pub fn render(&self, markdown_path: &Path) -> String {
         info!("rendering started");
+
+        // read markdown
+        info!("reading markdown file");
+        let mut f = File::open(markdown_path).unwrap();
+        let mut contents = String::new();
+        f.read_to_string(&mut contents).unwrap();
+        info!("markdown file read");
 
         // parse markdown
         info!("parsing markdown");
-        let (blocks, mut events) = self.parse();
+        let (blocks, mut events) = self.parse(&contents);
         info!("markdown parsed");
 
         // save files

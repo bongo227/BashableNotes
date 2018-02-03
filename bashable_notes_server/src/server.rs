@@ -6,9 +6,8 @@ use ws::{CloseCode, Error, ErrorKind, Frame, Handler, Handshake, Message, OpCode
 use ws::util::{Timeout, Token};
 use time;
 use serde_json;
-// use serde_json::to_string;
 
-use renderer::Renderer;
+use renderer::{Renderer, FileTree};
 
 const PING: Token = Token(1);
 const EXPIRE: Token = Token(2);
@@ -22,10 +21,12 @@ pub struct Server {
 #[derive(Serialize, Deserialize)]
 enum AppMessage {
     OpenFile { path: String },
+    GetTree,
     Markdown { path: String, markdown: String },
     Stdout { id: usize, payload: String },
     Stderr { id: usize, payload: String },
     Error { error: String },
+    FileTree { root: Vec<FileTree> }
 }
 
 impl Handler for Server {
@@ -48,7 +49,7 @@ impl Handler for Server {
         };
 
         debug!("message from client: {}", msg);
-        // thread_send(AppMessage::OpenFile{path: String::from("/some/path/file.md")});
+        thread_send(AppMessage::GetTree);
         // return Ok(());
 
         let msg_text = match &msg.into_text() {
@@ -62,13 +63,18 @@ impl Handler for Server {
         match serde_json::from_str(&msg_text) {
             Ok(msg) => match msg {
                 AppMessage::OpenFile { path } => {
-                    let renderer = Renderer::new(Path::new(&path));
-                    if let Err(err) = renderer {
-                        warn!("error constructing renderer: {}", err);
-                    } else {
-                        thread_send(AppMessage::Markdown{path, markdown: renderer.unwrap().render()})
-                    }
+                    let renderer = Renderer::new();
+                    thread_send(AppMessage::Markdown{
+                        path: path.clone(), 
+                        markdown: renderer.render(Path::new(&path))
+                    })
                 },
+                AppMessage::GetTree => {
+                    let renderer = Renderer::new();
+                    thread_send(AppMessage::FileTree{
+                        root: renderer.render_file_tree(),
+                    })
+                }
                 _ => warn!("unexpected message")
             },
             Err(err) => warn!("unable to parse message: {}", err),
