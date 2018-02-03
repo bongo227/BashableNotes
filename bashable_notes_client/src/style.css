@@ -1,0 +1,29 @@
+pre {
+    padding: 0px !important;
+}
+
+.file-tree .uk-nav>li>a {
+    padding: 0px;
+}
+
+.file-tree .uk-nav-sub a {
+    padding: 0px;
+}
+
+.file-tree ul.uk-nav-sub {
+    padding: 0px 0px 0px 15px;
+}
+
+.file-tree a {
+    padding: 2px 0px !important;
+}
+
+.file-tree {
+    position: fixed;
+    margin-top: 10px;
+}
+
+.file-tree>ul {
+    max-height: 100vh;
+    overflow-y: auto;
+}
