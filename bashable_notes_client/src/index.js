@@ -51,11 +51,9 @@ const Spinner = ({}) => (
 	<div uk-spinner=""></div>
 );
 
-const Document = ({children}) => (
-	<div style={{marginLeft: 350}}>
-		{children}
-	</div>
-)
+const Document = ({markdown}) => {
+	return <div style={{marginLeft: 350}} dangerouslySetInnerHTML={{__html: markdown}}></div>
+}
 
 class HelloMessage extends React.Component {
 	render() {
@@ -79,9 +77,7 @@ class HelloMessage extends React.Component {
 		
 		return <Container>
 			<FileTree tree={tree}/>
-			<Document>
-				Hello react!
-			</Document>
+			<Document markdown="<h1>Hello react!</h1>"/>
 		</Container>
 	}
 }
