@@ -13,6 +13,7 @@ phf = "0.7.12"
 include_dir = "0.1.4"
 glob = "*"
 mime_guess = "*"
+bashable_notes_server = { path = "../bashable_notes_server/" }
 
 [build-dependencies]
 include_dir = "0.1.4"

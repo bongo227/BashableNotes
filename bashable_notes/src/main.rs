@@ -5,12 +5,14 @@ extern crate phf;
 extern crate include_dir;
 extern crate glob;
 extern crate mime_guess;
+extern crate bashable_notes_server;
 
 use iron::{Request, Response, IronResult, Iron, status};
 use iron::headers::{ContentType};
 use mount::{Mount};
 use mime::{Mime, SubLevel, TopLevel};
 use std::path::Path;
+use std::thread;
 
 #[allow(dead_code)]
 pub mod assets {
@@ -42,5 +44,16 @@ fn handler(req: &mut Request) -> IronResult<Response> {
 }
 
 fn main() {
-    Iron::new(handler).http("localhost:3000").unwrap();
+    let websocket_address = "127.0.0.1:3012";
+    let static_server_address = "127.0.0.1:3000";
+    
+    let websocket_handle = thread::spawn(move || {
+        bashable_notes_server::start(websocket_address);
+    });
+    let static_server_handle = thread::spawn(move || {
+        Iron::new(handler).http("localhost:3000").unwrap();
+    });
+
+    websocket_handle.join();
+    static_server_handle.join();
 }
