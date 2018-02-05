@@ -149,7 +149,7 @@ impl Handler for Server {
         if frame.opcode() == OpCode::Pong {
             if let Ok(pong) = try!(from_utf8(frame.payload())).parse::<u64>() {
                 let now = time::precise_time_ns();
-                debug!("round trip time is {:.3}ms", (now - pong) as f64 / 1_000_000f64);
+                // debug!("round trip time is {:.3}ms", (now - pong) as f64 / 1_000_000f64);
             } else {
                 warn!("received bad pong");
             }

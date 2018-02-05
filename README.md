@@ -23,7 +23,8 @@ The options avalible are:
 
 By default all commands are run inside the `ubuntu:latest` docker container, if you need additional dependencies just create a new docker file (with `{"name":"Dockerfile"}`).
 
-```dockerfile {"name":"Dockerfile"}
+```dockerfile 
+{"name":"Dockerfile"}
 FROM ubuntu:latest
 RUN apt-get update
 RUN apt-get install -y python python-pip python-tk
@@ -37,7 +38,8 @@ RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
 
 Running python is as simple as naming the code block, and setting `cmd` (i.e. `{"cmd":"python file.py"`)
 
-```python {"name":"helloworld.py", "cmd":"python helloworld.py"}
+```python 
+{"cmd":"echo \"$CODE\" | python"}
 print("Hello world!")
 ```
 
@@ -45,7 +47,8 @@ print("Hello world!")
 
 Want to show some `matplotlib` graphs? Simple save the file then use the markdown image syntax to insert the file.
 
-```python {"name":"graph.py", "cmd":"python graph.py"}
+```python 
+{"cmd":"echo \"$CODE\" | python"}
 import matplotlib.pyplot as plt
 import numpy as np
 

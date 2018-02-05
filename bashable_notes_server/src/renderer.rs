@@ -15,7 +15,7 @@ use std::thread;
 use std::process::Command;
 
 pub struct Renderer {
-    notebook_dir: TempDir,
+    notebook_dir: PathBuf,
     env_exec_cmd: bool,
     container: Option<docker::Container>,
     blocks: Vec<CodeBlock>,
@@ -45,20 +45,7 @@ pub enum FileTree {
 
 impl CodeBlock {
     fn new(index: usize, settings: &str) -> Self {
-        let mut iter = settings.split_whitespace();
-        let language = match iter.next() {
-            Some(lang) => lang.to_owned(),
-            None => String::from(""),
-        };
-
-        let json = &settings[language.len()..];
-        let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(json);
-
-        let options = match result {
-            Ok(options) => options,
-            Err(_) => CodeBlockOptions::default(),
-        };
-
+        let mut options = CodeBlockOptions::default();
         CodeBlock {
             id: format!("block-{}", index),
             options: options,
@@ -83,7 +70,7 @@ impl CodeBlock {
 
 impl Renderer {
     pub fn new() -> Self {
-        let notebook_dir = TempDir::new("notebook").unwrap();
+        let notebook_dir = env::current_dir().unwrap();
         info!("created notebook directory");
 
         let env_exec_cmd = env::var("EXEC_CMD").unwrap_or_default() == "1";
@@ -100,6 +87,7 @@ impl Renderer {
     fn parse<'a>(&self, markdown: &'a str) -> (Vec<CodeBlock>, Vec<Event<'a>>) {
         let mut blocks: Vec<CodeBlock> = Vec::new();
         let mut in_block = false;
+        let mut first_line = false;
 
         let options = Options::all();
         let parser = Parser::new_ext(markdown, options);
@@ -113,13 +101,24 @@ impl Renderer {
                         let mut block = CodeBlock::new(index, &settings.clone());
                         blocks.push(block);
                         in_block = true;
+                        first_line = true;
                     }
 
                     Event::Text(ref text) => {
                         if in_block {
                             blocks
                                 .last_mut()
-                                .map(|block| block.push_code(&text));
+                                .map(|block| if first_line {
+                                    first_line = false;
+                                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(text);
+                                    if let Ok(options) = result {
+                                        block.options = options;
+                                    } else {
+                                        block.push_code(&text);
+                                    }
+                                } else {
+                                    block.push_code(&text);
+                                });
                         }
                     }
 
@@ -209,7 +208,7 @@ impl Renderer {
         // save files
         for block in blocks.clone() {
             if let Some(ref file_name) = block.options.name {
-                let path = self.notebook_dir.path().join(file_name);
+                let path = self.notebook_dir.join(file_name);
                 let mut f = File::create(path).unwrap();
                 f.write_all(block.code.as_bytes()).unwrap();
                 f.sync_all().unwrap();
@@ -279,9 +278,11 @@ impl Renderer {
     }
 
     pub fn execute(&mut self) -> Option<(String, (String, String))> {
+        debug!("self.blocks = {:?}", self.blocks);
+
         if self.container.is_none() {
             // create docker container
-            let docker_file = self.notebook_dir.path().join("Dockerfile");
+            let docker_file = self.notebook_dir.join("Dockerfile");
             if !docker_file.as_path().exists() {
                 info!("no Dockerfile, creating default Dockerfile");
 
@@ -304,7 +305,7 @@ impl Renderer {
             info!("docker image built");        
 
             info!("starting docker container");
-            let container = docker::Container::start(image, self.notebook_dir.path());
+            let container = docker::Container::start(image, &self.notebook_dir);
             self.container = container.ok();
             let container = self.container.clone().unwrap();
             info!("docker container {} started", container.id());
