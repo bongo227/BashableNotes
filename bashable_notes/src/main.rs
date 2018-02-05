@@ -6,6 +6,9 @@ extern crate include_dir;
 extern crate glob;
 extern crate mime_guess;
 extern crate bashable_notes_server;
+#[macro_use]
+extern crate log;
+extern crate env_logger;
 
 use iron::{Request, Response, IronResult, Iron, status};
 use iron::headers::{ContentType};
@@ -44,6 +47,8 @@ fn handler(req: &mut Request) -> IronResult<Response> {
 }
 
 fn main() {
+    env_logger::init();
+
     let websocket_address = "127.0.0.1:3012";
     let static_server_address = "127.0.0.1:3000";
     

@@ -89,10 +89,12 @@ impl Container {
         Ok(())
     }
 
-    pub fn exec(&self, cmd: &str) -> io::Result<(String, String)> {
+    pub fn exec(&self, cmd: &str, code: &str) -> io::Result<(String, String)> {
         let mut command = Command::new("docker");
         let command = command
             .arg("exec")
+            .arg("--env")
+            .arg(&format!("CODE={}", code))
             .arg(&self.id)
             .arg("bash")
             .arg("-c")

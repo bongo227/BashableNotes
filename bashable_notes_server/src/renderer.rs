@@ -28,7 +28,7 @@ pub struct CodeBlockOptions {
     cmd: Option<String>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct CodeBlock {
     id: String,
     options: CodeBlockOptions,
@@ -274,6 +274,10 @@ impl Renderer {
         html_buf
     }
 
+    pub fn execution_finished(&self) -> bool {
+        self.blocks.len() == 0
+    }
+
     pub fn execute(&mut self) -> Option<(String, (String, String))> {
         if self.container.is_none() {
             // create docker container
@@ -317,14 +321,17 @@ impl Renderer {
                     let result = match block.options.cmd {
                         Some(ref cmd) => {
                             info!("executing command: {}", cmd);
-                            container.exec(&cmd)
+                            container.exec(&cmd, &block.code)
                         },
                         None => return None,
                     };
                     
                     Some((block.id, result.unwrap()))
                 },
-                None => None,
+                None => {
+                    debug!("block {:?} doesnt have a command", block);
+                    None
+                },
             }
         }
 
