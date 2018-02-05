@@ -68,11 +68,10 @@ impl Handler for Server {
                     });
 
                     thread::spawn(move || {
-                        loop {
+                        while !renderer.execution_finished() {
                             let exec_result = renderer.execute();
-                            match exec_result {
-                                Some((id, (stdout, stderr))) => thread_send(AppMessage::Output{id, stdout, stderr}),
-                                None => break,
+                            if let Some((id, (stdout, stderr))) = exec_result {
+                                thread_send(AppMessage::Output{id, stdout, stderr});
                             }
                         }
                     });
