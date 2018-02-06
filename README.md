@@ -5,9 +5,10 @@ Bashable notes allows you to run arbitary commands (inside a customizable docker
 Note, this project is still in _very_ early development.
 
 ## Code block options
-Code block options are written in json after specifying a language
+Code block options are written in json one the first line of a code block
     
-    ```python {/* Insert options here */}
+    ```python 
+    {/* Insert options here */}
     print("Hello world!")
     ```
     
