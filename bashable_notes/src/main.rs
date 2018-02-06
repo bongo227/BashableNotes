@@ -12,23 +12,15 @@ extern crate env_logger;
 
 use iron::{Request, Response, IronResult, Iron, status};
 use iron::headers::{ContentType};
-use mount::{Mount};
-use mime::{Mime, SubLevel, TopLevel};
 use std::path::Path;
 use std::thread;
 use std::fs::File;
 use std::io::Read;
-
-#[allow(dead_code)]
-pub mod assets {
-    include!(concat!(env!("OUT_DIR"), "/static.rs"));
-}
-
-use assets::{DirEntry, STATIC};
+use assets::{STATIC};
 
 fn handler(req: &mut Request) -> IronResult<Response> {
-    println!("Running send_hello handler, URL path: {:?}", req.url.path());
     let mut string_path = req.url.path().join("/");
+    info!("request, url path: {:?}", string_path);
     if string_path == "" {
         string_path = String::from("index.html");
     }
@@ -65,9 +57,14 @@ fn main() {
         bashable_notes_server::start(websocket_address);
     });
     let static_server_handle = thread::spawn(move || {
-        Iron::new(handler).http("localhost:3000").unwrap();
+        Iron::new(handler).http(static_server_address).unwrap();
     });
 
-    websocket_handle.join();
-    static_server_handle.join();
+    websocket_handle.join().unwrap();
+    static_server_handle.join().unwrap();
+}
+
+#[allow(dead_code)]
+pub mod assets {
+    include!(concat!(env!("OUT_DIR"), "/static.rs"));
 }
