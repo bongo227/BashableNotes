@@ -1,22 +1,17 @@
 use pulldown_cmark::{html, Event, Options, Parser, Tag};
 use docker;
 use std::path::Path;
-use tempdir::TempDir;
 use std::borrow::Cow;
 use std::fs::File;
 use std::fs;
-use std::io;
 use std::io::{Read, Write};
 use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use serde_json;
-use std::thread;
-use std::process::Command;
 
 pub struct Renderer {
     notebook_dir: PathBuf,
-    env_exec_cmd: bool,
     container: Option<docker::Container>,
     blocks: Vec<CodeBlock>,
 }
@@ -44,23 +39,14 @@ pub enum FileTree {
 }
 
 impl CodeBlock {
-    fn new(index: usize, settings: &str) -> Self {
-        let mut options = CodeBlockOptions::default();
+    fn new(index: usize) -> Self {
         CodeBlock {
             id: format!("block-{}", index),
-            options: options,
+            options: CodeBlockOptions::default(),
             start_index: index,
             end_index: 0,
             code: String::new(),
         }
-    }
-
-    fn set_start(&mut self, index: usize) {
-        self.start_index = index;
-    }
-
-    fn set_end(&mut self, index: usize) {
-        self.end_index = index;
     }
 
     fn push_code(&mut self, code: &str) {
@@ -80,8 +66,11 @@ impl Renderer {
             blocks: Vec::new(),
             container: None,
             notebook_dir,
-            env_exec_cmd,
         }
+    }
+
+    pub fn clean_up(self) -> () {
+        self.container.map(|c| c.kill());
     }
 
     fn parse<'a>(&self, markdown: &'a str) -> (Vec<CodeBlock>, Vec<Event<'a>>) {
@@ -97,8 +86,8 @@ impl Renderer {
             .enumerate()
             .map(|(index, event)| {
                 match event {
-                    Event::Start(Tag::CodeBlock(ref settings)) => {
-                        let mut block = CodeBlock::new(index, &settings.clone());
+                    Event::Start(Tag::CodeBlock(_)) => {
+                        let mut block = CodeBlock::new(index);
                         blocks.push(block);
                         in_block = true;
                         first_line = true;
@@ -126,7 +115,7 @@ impl Renderer {
                         if in_block {
                             blocks
                                 .last_mut()
-                                .map(|block| block.set_end(index));
+                                .map(|block| block.end_index = index);
                             in_block = false;
                         }
                     }
@@ -226,7 +215,7 @@ impl Renderer {
         };
 
         info!("wrapping code blocks");
-        for (index, block) in blocks.into_iter().enumerate() {
+        for block in blocks {
             let block_wrapper_begin = format!(
                 r#"<ul uk-accordion="multiple: true" id="{}">"#,
                 block.id
@@ -278,8 +267,6 @@ impl Renderer {
     }
 
     pub fn execute(&mut self) -> Option<(String, (String, String))> {
-        debug!("self.blocks = {:?}", self.blocks);
-
         if self.container.is_none() {
             // create docker container
             let docker_file = self.notebook_dir.join("Dockerfile");
@@ -317,6 +304,7 @@ impl Renderer {
         } else {
             let container = self.container.clone().unwrap();
             let block = self.blocks.pop();
+
             match block {
                 Some(block) => {
                     let result = match block.options.cmd {

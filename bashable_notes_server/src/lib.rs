@@ -14,8 +14,6 @@ mod server;
 mod renderer;
 mod docker;
 
-use std::thread;
-
 use server::Server;
 use ws::listen;
 
@@ -23,7 +21,5 @@ pub fn start(address: &str) {
     info!("Starting websocket on ws://{}", address);
     listen(address, |out| Server {
         out: out,
-        ping_timeout: None,
-        expire_timeout: None,
     }).unwrap();
 }

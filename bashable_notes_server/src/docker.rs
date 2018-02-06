@@ -9,7 +9,7 @@ pub struct Image {
 
 impl Image {
     pub fn build(name: &str, docker_file: &Path) -> io::Result<Self> {
-        debug!("docker file path: {}", docker_file.canonicalize()?.to_str().unwrap());
+        info!("building docker file: {}", docker_file.canonicalize()?.to_str().unwrap());
         
         let output = Command::new("docker")
             .current_dir(docker_file.parent().unwrap().canonicalize()?.to_str().unwrap())
@@ -52,14 +52,11 @@ impl Container {
             .arg("--net=host") // share the network with host
             .arg(&image.name);
 
-        debug!("docker exec command: {:?}", command);
+        debug!("docker run command: {:?}", command);
         let output = command.output()?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stdout = String::from_utf8_lossy(&output.stdout);     
         let stderr = String::from_utf8_lossy(&output.stderr);
-        
-        debug!("stdout: {}", stdout);
-        debug!("stderr: {}", stderr);
         
         if stderr != "" {
             panic!("Failed to start container: {}", stderr);
@@ -75,15 +72,19 @@ impl Container {
         self.id.clone()
     }
 
-    fn kill(&self) -> io::Result<()> {
+    pub fn kill(self) -> io::Result<()> {
+        info!("killing container: {}", self.id);
+        
         let output = Command::new("docker")
             .arg("kill")
-            .arg(&self.id)
+            .arg(self.id)
             .output()?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr != "" {
             warn!("failed to kill container: {}", stderr);
+        } else {
+            info!("container killed");
         }
 
         Ok(())
