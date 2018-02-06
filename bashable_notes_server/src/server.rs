@@ -33,9 +33,9 @@ impl Handler for Server {
 
         debug!("message from client: {}", msg);
 
-        let msg_text = match &msg.into_text() {
-            &Ok(ref text) => text.clone(),
-            &Err(ref err) => {
+        let msg_text = match msg.into_text() {
+            Ok(ref text) => text.clone(),
+            Err(ref err) => {
                 warn!("unable to course message into text: {}", err);
                 return Ok(())
             }

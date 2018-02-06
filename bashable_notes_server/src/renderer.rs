@@ -103,10 +103,10 @@ impl Renderer {
                                     if let Ok(options) = result {
                                         block.options = options;
                                     } else {
-                                        block.push_code(&text);
+                                        block.push_code(text);
                                     }
                                 } else {
-                                    block.push_code(&text);
+                                    block.push_code(text);
                                 });
                         }
                     }
@@ -147,7 +147,7 @@ impl Renderer {
     }
 
     fn internal_error(&self) -> String {
-        return String::from("Internal server error");
+        String::from("Internal server error")
     }
 
     pub fn render_file_tree(&self) -> Vec<FileTree> {
@@ -263,7 +263,7 @@ impl Renderer {
     }
 
     pub fn execution_finished(&self) -> bool {
-        self.blocks.len() == 0
+        self.blocks.is_empty()
     }
 
     pub fn execute(&mut self) -> Option<(String, (String, String))> {
@@ -274,7 +274,7 @@ impl Renderer {
                 info!("no Dockerfile, creating default Dockerfile");
 
                 let mut f = File::create(&docker_file).unwrap();
-                f.write_all("FROM ubuntu:latest".as_bytes()).unwrap();
+                f.write_all(b"FROM ubuntu:latest").unwrap();
                 f.sync_all().unwrap();
 
                 info!("created default Dockerfile");
@@ -300,7 +300,7 @@ impl Renderer {
         }
 
         if self.container.is_none() {
-            return None;
+            None
         } else {
             let container = self.container.clone().unwrap();
             let block = self.blocks.pop();
@@ -310,7 +310,7 @@ impl Renderer {
                     let result = match block.options.cmd {
                         Some(ref cmd) => {
                             info!("executing command: {}", cmd);
-                            container.exec(&cmd, &block.code)
+                            container.exec(cmd, &block.code)
                         },
                         None => return None,
                     };
