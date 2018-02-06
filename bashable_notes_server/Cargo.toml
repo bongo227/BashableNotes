@@ -1,0 +1,15 @@
+[package]
+name = "bashable_notes_server"
+version = "0.1.0"
+authors = ["Ben Sheffield <bshefb@gmail.com>"]
+
+[dependencies]
+env_logger = "*"
+log = "*"
+ws = "*"
+time = "*"
+pulldown-cmark = "*"
+tempdir = "*"
+serde = "*"
+serde_json = "*"
+serde_derive = "*"

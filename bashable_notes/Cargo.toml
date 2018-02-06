@@ -1,0 +1,22 @@
+[package]
+name = "bashable_notes"
+version = "0.1.0"
+authors = ["Ben Sheffield <bshefb@gmail.com>"]
+build = "src/build.rs"
+include = ["static.rs"]
+
+[dependencies]
+iron = "*"
+mount = "*"
+mime = "*"
+phf = "0.7.12"
+include_dir = "0.1.4"
+glob = "*"
+mime_guess = "*"
+bashable_notes_server = { path = "../bashable_notes_server/" }
+log = "0.4.0"
+env_logger = "0.5.3"
+
+[build-dependencies]
+include_dir = "0.1.4"
+tempdir = "*"

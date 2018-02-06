@@ -1,5 +1,9 @@
+.cache/
+dist/
+node_modules/
 
-/target/
+target/
 **/*.rs.bk
 
 notebook/
+static/
