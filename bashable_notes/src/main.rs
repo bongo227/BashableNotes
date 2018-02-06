@@ -16,6 +16,8 @@ use mount::{Mount};
 use mime::{Mime, SubLevel, TopLevel};
 use std::path::Path;
 use std::thread;
+use std::fs::File;
+use std::io::Read;
 
 #[allow(dead_code)]
 pub mod assets {
@@ -26,22 +28,29 @@ use assets::{DirEntry, STATIC};
 
 fn handler(req: &mut Request) -> IronResult<Response> {
     println!("Running send_hello handler, URL path: {:?}", req.url.path());
-    let mut file_request = "";
-    if req.url.path().len() == 1 && req.url.path()[0] == "" {
-        file_request = "index.html";
-    } else {
-        file_request = req.url.path()[0]
+    let mut string_path = req.url.path().join("/");
+    if string_path == "" {
+        string_path = String::from("index.html");
     }
     
-    let data = match STATIC.find(file_request) {
+    let mut content = String::new();
+    let mut path = Path::new(&string_path);
+    let data = match STATIC.find(&string_path) {
         Some(file) => file.contents,
-        None => return Ok(Response::with(status::NotFound)),
+        None => {
+            path = Path::new(&string_path);
+            if path.exists() {
+                let mut f = File::open(path).unwrap();
+                f.read_to_string(&mut content).unwrap();
+                content.as_bytes()
+            } else {
+                return Ok(Response::with(status::NotFound))
+            }
+        },
     };
     
     let mut resp = Response::with((status::Ok, data));
-    
-    // resp.headers.set(ContentType(Mime(TopLevel::Text, SubLevel::Html, vec![])));
-    let mime = mime_guess::guess_mime_type(Path::new(&file_request));
+    let mime = mime_guess::guess_mime_type(path);
     resp.headers.set(ContentType(mime));
     Ok(resp)
 }

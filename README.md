@@ -61,7 +61,7 @@ plt.gca().set_position([0, 0, 1, 1])
 plt.savefig("graph.svg")
 ```
 
-![graph](notebook/graph.svg)
+![graph](graph.svg)
 
 ## Upcoming features
 
