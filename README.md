@@ -19,24 +19,9 @@ The options avalible are:
 
 ## Code blocks in action
 
-### Custom docker container
-
-By default all commands are run inside the `ubuntu:latest` docker container, if you need additional dependencies just create a new docker file (with `{"name":"Dockerfile"}`).
-
-```dockerfile 
-{"name":"Dockerfile"}
-FROM ubuntu:latest
-RUN apt-get update
-RUN apt-get install -y python python-pip python-tk
-RUN pip install matplotlib numpy
-# Change matplotlib backend to non-interactive
-RUN mkdir -p $HOME/.config/matplotlib/
-RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
-```
-
 ### Running python
 
-Running python is as simple as naming the code block, and setting `cmd` (i.e. `{"cmd":"python file.py"`)
+To run python just pipe `$CODE` into `python` via `echo`.
 
 ```python 
 {"cmd":"echo \"$CODE\" | python"}
@@ -63,9 +48,23 @@ plt.savefig("graph.svg")
 
 ![graph](graph.svg)
 
+### Custom docker container
+
+By default all commands are run inside the `ubuntu:latest` docker container, if you need additional dependencies just create a new docker file.
+
+```dockerfile 
+{"name":"Dockerfile"}
+FROM ubuntu:latest
+RUN apt-get update
+RUN apt-get install -y python python-pip python-tk
+RUN pip install matplotlib numpy
+# Change matplotlib backend to non-interactive
+RUN mkdir -p $HOME/.config/matplotlib/
+RUN echo "backend : Agg" >> $HOME/.config/matplotlib/matplotlibrc
+```
+
 ## Upcoming features
 
-- File system to view markdown files in folder/subfolders.
 - Stream code output instead of waiting execution to terminate
 - Parse enviroment variables in via code block options
 - HTML form controls set enviroment variables (enabling _interactive_ notebooks)
