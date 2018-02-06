@@ -9,8 +9,11 @@ pub struct Image {
 
 impl Image {
     pub fn build(name: &str, docker_file: &Path) -> io::Result<Self> {
-        info!("building docker file: {}", docker_file.canonicalize()?.to_str().unwrap());
-        
+        info!(
+            "building docker file: {}",
+            docker_file.canonicalize()?.to_str().unwrap()
+        );
+
         let output = Command::new("docker")
             .current_dir(docker_file.parent().unwrap().canonicalize()?.to_str().unwrap())
             .arg("build")
@@ -24,11 +27,13 @@ impl Image {
         let success_message = format!("Successfully tagged {}:latest", name);
         let stdout = String::from_utf8_lossy(&output.stdout);
         if !stdout.contains(&success_message) {
-            panic!("Failed to build docker image: {}",
-                String::from_utf8_lossy(&output.stderr))
+            panic!(
+                "Failed to build docker image: {}",
+                String::from_utf8_lossy(&output.stderr)
+            )
         }
 
-        Ok(Image { 
+        Ok(Image {
             name: name.to_string(),
         })
     }
@@ -55,9 +60,9 @@ impl Container {
         debug!("docker run command: {:?}", command);
         let output = command.output()?;
 
-        let stdout = String::from_utf8_lossy(&output.stdout);     
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        
+
         if stderr != "" {
             panic!("Failed to start container: {}", stderr);
         }
@@ -74,11 +79,8 @@ impl Container {
 
     pub fn kill(self) -> io::Result<()> {
         info!("killing container: {}", self.id);
-        
-        let output = Command::new("docker")
-            .arg("kill")
-            .arg(self.id)
-            .output()?;
+
+        let output = Command::new("docker").arg("kill").arg(self.id).output()?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);
         if stderr != "" {
@@ -99,15 +101,15 @@ impl Container {
             .arg(&self.id)
             .arg("bash")
             .arg("-c")
-            .arg(&format!("cd home && {}", cmd));;
-            // .output()?;
+            .arg(&format!("cd home && {}", cmd));
+        // .output()?;
 
         debug!("docker exec command: {:?}", command);
         let output = command.output()?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        
+
         debug!("docker exec output: {} {}", stdout, stderr);
 
         Ok((stdout.to_string(), stderr.to_string()))

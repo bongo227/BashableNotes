@@ -34,8 +34,14 @@ pub struct CodeBlock {
 
 #[derive(Serialize, Deserialize)]
 pub enum FileTree {
-    File { name: String, path: String },
-    Folder { name: String, subtree: Vec<FileTree> },
+    File {
+        name: String,
+        path: String,
+    },
+    Folder {
+        name: String,
+        subtree: Vec<FileTree>,
+    },
 }
 
 impl CodeBlock {
@@ -95,11 +101,11 @@ impl Renderer {
 
                     Event::Text(ref text) => {
                         if in_block {
-                            blocks
-                                .last_mut()
-                                .map(|block| if first_line {
+                            blocks.last_mut().map(|block| {
+                                if first_line {
                                     first_line = false;
-                                    let result: serde_json::Result<CodeBlockOptions> = serde_json::from_str(text);
+                                    let result: serde_json::Result<CodeBlockOptions> =
+                                        serde_json::from_str(text);
                                     if let Ok(options) = result {
                                         block.options = options;
                                     } else {
@@ -107,15 +113,14 @@ impl Renderer {
                                     }
                                 } else {
                                     block.push_code(text);
-                                });
+                                }
+                            });
                         }
                     }
 
                     Event::End(Tag::CodeBlock(_)) => {
                         if in_block {
-                            blocks
-                                .last_mut()
-                                .map(|block| block.end_index = index);
+                            blocks.last_mut().map(|block| block.end_index = index);
                             in_block = false;
                         }
                     }
@@ -130,9 +135,13 @@ impl Renderer {
     }
 
     fn collabsible_wrapper_begin(&self, title: &str, subtext: &str) -> String {
-        format!(r##"
+        format!(
+            r##"
             <li class="uk-open">
-                <a class="uk-accordion-title uk-text-small" href="#"><span class="uk-text-bold">{}</span> <span class="uk-text-muted">{}</span></a>
+                <a class="uk-accordion-title uk-text-small" href="#">
+                    <span class="uk-text-bold">{}</span>
+                    <span class="uk-text-muted">{}</span>
+                </a>
                 <div class="uk-accordion-content">"##,
             title, subtext
         )
@@ -153,17 +162,23 @@ impl Renderer {
     pub fn render_file_tree(&self) -> Vec<FileTree> {
         fn recurse_directorys(current_dir: PathBuf) -> Vec<FileTree> {
             let mut tree = Vec::new();
-            
+
             for path in fs::read_dir(current_dir).unwrap() {
                 let path = path.unwrap();
                 let file_name: OsString = path.file_name();
                 let file_name = file_name.to_str().unwrap();
                 if path.path().is_dir() {
-                    tree.push(FileTree::Folder{name:file_name.to_string(), subtree:recurse_directorys(path.path())});
+                    tree.push(FileTree::Folder {
+                        name: file_name.to_string(),
+                        subtree: recurse_directorys(path.path()),
+                    });
                 } else {
                     let path = path.path();
                     let full_path = path.to_str().unwrap();
-                    tree.push(FileTree::File{name:file_name.to_string(), path: full_path.to_string()})
+                    tree.push(FileTree::File {
+                        name: file_name.to_string(),
+                        path: full_path.to_string(),
+                    })
                 }
             }
 
@@ -209,25 +224,19 @@ impl Renderer {
         // wrap code blocks
         let mut insert_offset = 0;
 
-        let mut insert_html = | events: &mut Vec<Event>, index: usize, html: String | {
+        let mut insert_html = |events: &mut Vec<Event>, index: usize, html: String| {
             events.insert(index + insert_offset, Event::Html(Cow::from(html)));
             insert_offset += 1;
         };
 
         info!("wrapping code blocks");
         for block in blocks {
-            let block_wrapper_begin = format!(
-                r#"<ul uk-accordion="multiple: true" id="{}">"#,
-                block.id
-            );
+            let block_wrapper_begin =
+                format!(r#"<ul uk-accordion="multiple: true" id="{}">"#, block.id);
             let block_wrapper_end = String::from(r#"</ul>"#);
 
             // begin outer wrapper
-            insert_html(
-                &mut events,
-                block.start_index,
-                block_wrapper_begin.clone()
-            );
+            insert_html(&mut events, block.start_index, block_wrapper_begin.clone());
 
             // wrap code
             insert_html(
@@ -236,20 +245,16 @@ impl Renderer {
                 self.collabsible_wrapper_begin(
                     "Input",
                     &block.options.name.clone().unwrap_or_default(),
-                )
+                ),
             );
             insert_html(
                 &mut events,
                 block.end_index + 1,
-                self.collabsible_wrapper_end()
+                self.collabsible_wrapper_end(),
             );
 
             // end outer wrapper
-            insert_html(
-                &mut events,
-                block.end_index + 1,
-                block_wrapper_end.clone()
-            );
+            insert_html(&mut events, block.end_index + 1, block_wrapper_end.clone());
         }
         info!("code blocks wrapped");
 
@@ -287,9 +292,9 @@ impl Renderer {
                     error!("error building docker image: {}", err);
                     let ie = self.internal_error();
                     return Some((ie.clone(), (ie.clone(), ie.clone())));
-                },
+                }
             };
-            info!("docker image built");        
+            info!("docker image built");
 
             info!("starting docker container");
             let container = docker::Container::start(image, &self.notebook_dir);
@@ -311,18 +316,17 @@ impl Renderer {
                         Some(ref cmd) => {
                             info!("executing command: {}", cmd);
                             container.exec(cmd, &block.code)
-                        },
+                        }
                         None => return None,
                     };
-                    
+
                     Some((block.id, result.unwrap()))
-                },
+                }
                 None => {
                     debug!("block {:?} doesnt have a command", block);
                     None
-                },
+                }
             }
         }
-
     }
 }

@@ -1,22 +1,22 @@
-extern crate iron;
-extern crate mount;
-extern crate mime;
-extern crate phf;
-extern crate include_dir;
-extern crate glob;
-extern crate mime_guess;
 extern crate bashable_notes_server;
+extern crate env_logger;
+extern crate glob;
+extern crate include_dir;
+extern crate iron;
 #[macro_use]
 extern crate log;
-extern crate env_logger;
+extern crate mime;
+extern crate mime_guess;
+extern crate mount;
+extern crate phf;
 
-use iron::{Request, Response, IronResult, Iron, status};
-use iron::headers::{ContentType};
+use iron::{status, Iron, IronResult, Request, Response};
+use iron::headers::ContentType;
 use std::path::Path;
 use std::thread;
 use std::fs::File;
 use std::io::Read;
-use assets::{STATIC};
+use assets::STATIC;
 
 fn handler(req: &mut Request) -> IronResult<Response> {
     let mut string_path = req.url.path().join("/");
@@ -24,7 +24,7 @@ fn handler(req: &mut Request) -> IronResult<Response> {
     if string_path == "" {
         string_path = String::from("index.html");
     }
-    
+
     let mut content = String::new();
     let mut path = Path::new(&string_path);
     let data = match STATIC.find(&string_path) {
@@ -36,11 +36,11 @@ fn handler(req: &mut Request) -> IronResult<Response> {
                 f.read_to_string(&mut content).unwrap();
                 content.as_bytes()
             } else {
-                return Ok(Response::with(status::NotFound))
+                return Ok(Response::with(status::NotFound));
             }
-        },
+        }
     };
-    
+
     let mut resp = Response::with((status::Ok, data));
     let mime = mime_guess::guess_mime_type(path);
     resp.headers.set(ContentType(mime));
@@ -52,7 +52,7 @@ fn main() {
 
     let websocket_address = "127.0.0.1:3012";
     let static_server_address = "127.0.0.1:3000";
-    
+
     let websocket_handle = thread::spawn(move || {
         bashable_notes_server::start(websocket_address);
     });

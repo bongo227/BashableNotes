@@ -2,7 +2,7 @@ use std::thread;
 use std::path::Path;
 use ws::{CloseCode, Error, Handler, Message, Result, Sender};
 use serde_json;
-use renderer::{Renderer, FileTree};
+use renderer::{FileTree, Renderer};
 
 pub struct Server {
     pub out: Sender,
@@ -10,18 +10,31 @@ pub struct Server {
 
 #[derive(Serialize, Deserialize)]
 enum AppMessage {
-    OpenFile { path: String },
+    OpenFile {
+        path: String,
+    },
     GetTree,
-    Markdown { path: String, markdown: String },
-    Output { id: String, stdout: String, stderr: String },
-    Error { error: String },
-    FileTree { root: Vec<FileTree> }
+    Markdown {
+        path: String,
+        markdown: String,
+    },
+    Output {
+        id: String,
+        stdout: String,
+        stderr: String,
+    },
+    Error {
+        error: String,
+    },
+    FileTree {
+        root: Vec<FileTree>,
+    },
 }
 
 impl Handler for Server {
     fn on_message(&mut self, msg: Message) -> Result<()> {
         let out = self.out.clone();
-        
+
         let thread_send = move |app_msg: AppMessage| {
             let out = out.clone();
             thread::spawn(move || {
@@ -37,7 +50,7 @@ impl Handler for Server {
             Ok(ref text) => text.clone(),
             Err(ref err) => {
                 warn!("unable to course message into text: {}", err);
-                return Ok(())
+                return Ok(());
             }
         };
 
@@ -45,33 +58,31 @@ impl Handler for Server {
             Ok(msg) => match msg {
                 AppMessage::OpenFile { path } => {
                     let mut renderer = Renderer::new();
-                    thread_send(AppMessage::Markdown{
-                        path: path.clone(), 
-                        markdown: renderer.render(Path::new(&path))
+                    thread_send(AppMessage::Markdown {
+                        path: path.clone(),
+                        markdown: renderer.render(Path::new(&path)),
                     });
 
                     thread::spawn(move || {
                         while !renderer.execution_finished() {
                             let exec_result = renderer.execute();
                             if let Some((id, (stdout, stderr))) = exec_result {
-                                thread_send(AppMessage::Output{id, stdout, stderr});
+                                thread_send(AppMessage::Output { id, stdout, stderr });
                             }
                         }
                         renderer.clean_up();
                     });
-
-                },
+                }
                 AppMessage::GetTree => {
                     let renderer = Renderer::new();
-                    thread_send(AppMessage::FileTree{
+                    thread_send(AppMessage::FileTree {
                         root: renderer.render_file_tree(),
                     })
                 }
-                _ => warn!("unexpected message")
+                _ => warn!("unexpected message"),
             },
             Err(err) => warn!("unable to parse message: {}", err),
         }
-        
 
         self.out.send(Message::text("Hi, I am the server!"))
     }

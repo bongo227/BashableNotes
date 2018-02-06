@@ -5,7 +5,7 @@ use tempdir::TempDir;
 use std::process::Command;
 use std::path::Path;
 use std::env;
-use include_dir::{include_dir};
+use include_dir::include_dir;
 
 fn main() {
     let static_path = TempDir::new("static").unwrap();
@@ -25,7 +25,7 @@ fn main() {
         .arg("./")
         .spawn()
         .unwrap();
-    
+
     // include_dir(static_path.path().to_str().unwrap())
     include_dir(&in_dir.to_string_lossy())
         .as_variable("STATIC")
