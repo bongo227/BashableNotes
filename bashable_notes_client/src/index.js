@@ -1,9 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom";
+import MediaQuery from 'react-responsive';
 
 import { FileTree } from './filetree';
 import { Container, Spinner } from './uikit';
 import "./style.css";
+
+export const FileTreeWidth = 350;
 
 class Document extends React.Component {
 	constructor(props) {
@@ -46,12 +49,36 @@ class Document extends React.Component {
     }
 
 	render() {
-		return <div 
-			style={{marginLeft: 220}} 
-			dangerouslySetInnerHTML={{__html: this.state.markdown}}>
-		</div>
+		return (
+			<div>
+				<MediaQuery minWidth={991}>
+					<div 
+						style={{marginLeft: FileTreeWidth}} 
+						dangerouslySetInnerHTML={{__html: this.state.markdown}}>
+					</div>
+				</MediaQuery>
+				<MediaQuery maxWidth={991}>
+					<div 
+						dangerouslySetInnerHTML={{__html: this.state.markdown}}>
+					</div>
+				</MediaQuery>
+			</div>
+		);
 	} 
 }
+
+const NavBar = ({sideNavId}) => (
+	<div className="uk-navbar-container uk-navbar-sticky" uk-navbar={""} uk-sticky={""}>
+		<div className="uk-navbar-left">
+			<a className="uk-navbar-item uk-logo">BashableNotes</a>
+		</div>
+		<MediaQuery maxWidth={991}>
+			<div className="uk-navbar-right">
+				<a className="uk-navbar-toggle" uk-navbar-toggle-icon={""} uk-toggle={""} href={"#"+sideNavId}></a>
+			</div>
+		</MediaQuery>
+	</div>
+);
 
 class App extends React.Component {
 	constructor(props) {
@@ -68,12 +95,19 @@ class App extends React.Component {
 			console.log("Message from server: {}", msg);
 		});
 	}
-	
+
 	render() {
-		return <Container>
-			<FileTree socket={this.state.socket}/>
-			<Document socket={this.state.socket}/>
-		</Container>
+		return (
+			<div>
+				<NavBar sideNavId="file-tree-nav" />
+				<div style={{paddingTop: 20}}>
+					<Container>
+						<FileTree width={FileTreeWidth-40} sideNavId="file-tree-nav" socket={this.state.socket}/>
+						<Document socket={this.state.socket}/>
+					</Container>
+				</div>
+			</div>
+		) 
 	}
 }
 

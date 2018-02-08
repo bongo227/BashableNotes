@@ -29,58 +29,47 @@ const Folder = ({ name, children }) => (
     </li>
 );
 
-const OnCanvas = ({children}) => {
-    return (
-        <div className="uk-width-1-2@s uk-width-2-5@m file-tree">
-            <ul className="uk-nav-default uk-nav-parent-icon uk-nav" 
-                uk-nav="multiple: true" 
-                style={{width: 170}}>
-                {children}
-            </ul>
-        </div>
-    );
+class OnCanvas extends React.Component {
+    componentDidMount() {
+        console.log("hiding!");
+        let element = UIkit.offcanvas("#"+this.props.sideNavId);
+        console.dir(element);
+        if (element !== undefined) element.hide();
+    }
+    
+    render() {
+        return (
+            <div className="file-tree">
+                <ul className="uk-nav-default uk-nav-parent-icon uk-nav" 
+                    uk-nav="multiple: true" 
+                    style={{width: this.props.width}}>
+                    {this.props.children}
+                </ul>
+            </div>
+        );
+    }
 }
 
 class OffCanvas extends React.Component {
 
     componentDidMount() {
-        console.log("mounting!");
-        let res = UIkit.offcanvas("#offcanvas-slide", {});
-        console.dir(res);
+        UIkit.offcanvas("#"+this.props.sideNavId, {});
     }
 
     render() { 
         return (
-            <div>
-                <a href="#offcanvas-slide" className="uk-button uk-button-default" uk-toggle={""}>
-                    Open
-                </a>
-
-                <div id="offcanvas-slide" uk-offcanvas={""}>
-                    <div className="uk-offcanvas-bar">
-                        <ul className="uk-nav-default uk-nav-parent-icon uk-nav"
-                            uk-nav="multiple: true">
-                            {this.props.children}
-                        </ul>
-                    </div>
+            <div id={this.props.sideNavId} uk-offcanvas={""}>
+                <div className="uk-offcanvas-bar">
+                    <ul className="uk-nav-default uk-nav-parent-icon uk-nav"
+                        uk-nav="multiple: true">
+                        {this.props.children}
+                    </ul>
                 </div>
             </div>
         );
     }
 }
 
-export const Desktop = (props) => <MediaQuery minWidth={992}>{props.children}</MediaQuery>;
-export const Tablet = (props) => <MediaQuery minWidth={768} maxWidth={991}>{props.children}</MediaQuery>;
-export const Mobile = (props) => <MediaQuery maxWidth={767}>{props.children}</MediaQuery>;
-export const Default = (props) => <MediaQuery minWidth={768}>{props.children}</MediaQuery>;
-
-export const DeviceTest = () => (
-  <div>
-    <Desktop>Desktop or laptop</Desktop>
-    <Tablet>Tablet</Tablet>
-    <Mobile>Mobile</Mobile>
-  </div>
-);
 
 export class FileTree extends React.Component {
     constructor(props) {
@@ -118,8 +107,6 @@ export class FileTree extends React.Component {
     }
 
     render() {
-        console.log("render");
-        console.dir(this.state);
         let recurse_tree = (tree) => {
             return tree.map((item, index) => {
                 if ('File' in item) {
@@ -138,11 +125,9 @@ export class FileTree extends React.Component {
 
         return (
             <div>
-                <Desktop>
-                    <OnCanvas>{recurse_tree(this.state.tree)}</OnCanvas>
-                </Desktop>
-                <MediaQuery maxWidth={991}>
-                    <OffCanvas>{recurse_tree(this.state.tree)}</OffCanvas>
+                <OffCanvas sideNavId={this.props.sideNavId}>{recurse_tree(this.state.tree)}</OffCanvas>
+                <MediaQuery minWidth={991}>
+                    <OnCanvas width={this.props.width} sideNavId={this.props.sideNavId}>{recurse_tree(this.state.tree)}</OnCanvas>
                 </MediaQuery>
             </div>
         );
