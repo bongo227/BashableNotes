@@ -8,10 +8,8 @@ use std::env;
 use include_dir::include_dir;
 
 fn main() {
-    let static_path = TempDir::new("static").unwrap();
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_file = Path::new(&out_dir).join("static.rs");
-
     let in_dir = Path::new(&out_dir).join("static/");
 
     // build bashable_notes_client

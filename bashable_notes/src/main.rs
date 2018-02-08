@@ -54,9 +54,11 @@ fn main() {
     let static_server_address = "127.0.0.1:3000";
 
     let websocket_handle = thread::spawn(move || {
+        info!("starting websocket server");
         bashable_notes_server::start(websocket_address);
     });
     let static_server_handle = thread::spawn(move || {
+        info!("starting static server");
         Iron::new(handler).http(static_server_address).unwrap();
     });
 

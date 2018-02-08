@@ -72,7 +72,7 @@ class App extends React.Component {
 	render() {
 		return <Container>
 			<FileTree socket={this.state.socket}/>
-			<Document markdown="<h1>Hello react!</h1>" socket={this.state.socket}/>
+			<Document socket={this.state.socket}/>
 		</Container>
 	}
 }
