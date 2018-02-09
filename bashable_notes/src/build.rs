@@ -1,7 +1,6 @@
 extern crate include_dir;
 extern crate tempdir;
 
-use tempdir::TempDir;
 use std::process::Command;
 use std::path::Path;
 use std::env;
@@ -21,11 +20,13 @@ fn main() {
         .arg(in_dir.as_os_str())
         .arg("--public-url")
         .arg("./")
-        .spawn()
+        .output()
         .unwrap();
 
-    // include_dir(static_path.path().to_str().unwrap())
-    include_dir(&in_dir.to_string_lossy())
+    std::thread::sleep_ms(1000);
+
+    include_dir(in_dir.to_str().unwrap())
+    // include_dir(&in_dir.canonicalize().unwrap().to_string_lossy())
         .as_variable("STATIC")
         .to_file(out_file)
         .unwrap();

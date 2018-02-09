@@ -9,8 +9,11 @@ pub struct Server {
 }
 
 #[derive(Serialize, Deserialize)]
-enum AppMessage {
+pub enum AppMessage {
     OpenFile {
+        path: String,
+    },
+    FileUpdate {
         path: String,
     },
     GetTree,
