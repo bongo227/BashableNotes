@@ -1,23 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="description" content="Executable code within markdown notes inside a docker container">
-        <meta name="keywords" content="docker,markdown,notes,code">
-        <meta name="author" content="Ben Sheffield">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <!-- UIkit CSS -->
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/css/uikit.min.css" />
-    </head>
-    <body>
-        <div id="app"></div>
-        
-        <!-- UIkit JS -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/js/uikit.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/js/uikit-icons.min.js"></script>
-        
-        <script src="./index.js"></script>
-    </body>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="description" content="Executable code within markdown notes inside a docker container">
+    <meta name="keywords" content="docker,markdown,notes,code">
+    <meta name="author" content="Ben Sheffield">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- UIkit CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/css/uikit.min.css" />
+</head>
+
+<body>
+    <div id="app"></div>
+
+    <!-- UIkit JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/js/uikit.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/uikit/3.0.0-beta.39/js/uikit-icons.min.js"></script>
+    <!-- MathJax JS -->
+    <script>
+        window.MathJax = {
+            jax: ["input/TeX", "input/MathML", "input/AsciiMath", "output/CommonHTML"],
+            tex2jax: {
+                inlineMath: [['$', '$'], ["\\(", "\\)"]],
+                displayMath: [['$$', '$$'], ["\\[", "\\]"]],
+                processEscapes: true
+            },
+            extensions: ["tex2jax.js", "mml2jax.js", "asciimath2jax.js", "MathMenu.js", "MathZoom.js", "AssistiveMML.js", "a11y/accessibility-menu.js"],
+            TeX: {
+                extensions: ["AMSmath.js", "AMSsymbols.js", "noErrors.js", "noUndefined.js"]
+            }
+        };
+        </script>
+    <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.2/MathJax.js"></script>
+    <!-- App JS -->
+    <script src="./index.js"></script>
+</body>
+
 </html>
-
-

@@ -75,8 +75,12 @@ class Document extends React.Component {
 	}
 	
 	componentDidUpdate() {
+		// re-highlight
 		hljs.initHighlighting.called = false;
 		hljs.initHighlighting();
+	
+		// rerender math
+		window.MathJax.Hub.Queue(["Typeset",window.MathJax.Hub]);
 	}
 
 	render() {
