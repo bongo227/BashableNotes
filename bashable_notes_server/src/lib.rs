@@ -36,7 +36,7 @@ fn watch(broadcaster: ws::Sender) -> notify::Result<()> {
         match rx.recv() {
             Ok(event) => {
                 match event {
-                    DebouncedEvent::NoticeWrite(path) => {
+                    DebouncedEvent::Write(path) => {
                         let msg = AppMessage::FileUpdate{path:path.to_str().unwrap().to_string()};
                         let text = serde_json::to_string(&msg).unwrap();
                         broadcaster.send(ws::Message::Text(text)).unwrap();
